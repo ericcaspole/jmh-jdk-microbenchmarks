@@ -132,26 +132,26 @@ public class InMemoryJavaCompiler {
             return file;
         }
 
-        @Override
-        public Location getLocationForModule(Location location, JavaFileObject fo) throws IOException {
-            if (fo == file && moduleOverride != null) {
-                return PATCH_LOCATION;
-            }
-            return super.getLocationForModule(location, fo);
-        }
+//        @Override
+//        public Location getLocationForModule(Location location, JavaFileObject fo) throws IOException {
+//            if (fo == file && moduleOverride != null) {
+//                return PATCH_LOCATION;
+//            }
+//            return super.getLocationForModule(location, fo);
+//        }
 
-        @Override
-        public String inferModuleName(Location location) throws IOException {
-            if (location == PATCH_LOCATION) {
-                return moduleOverride;
-            }
-            return super.inferModuleName(location);
-        }
+//        @Override
+//        public String inferModuleName(Location location) throws IOException {
+//            if (location == PATCH_LOCATION) {
+//                return moduleOverride;
+//            }
+//            return super.inferModuleName(location);
+//        }
 
-        @Override
-        public boolean hasLocation(Location location) {
-            return super.hasLocation(location) || location == StandardLocation.PATCH_MODULE_PATH;
-        }
+//        @Override
+//        public boolean hasLocation(Location location) {
+//            return super.hasLocation(location) || location == StandardLocation.PATCH_MODULE_PATH;
+//        }
 
     }
 

@@ -46,10 +46,10 @@ public class DynamicLoading {
   static int index = 0;
   static Object[] out;
 
-  @Param({ "50" })
+  @Param({ "10", "25", "50" })
   public int numberOfClasses;
 
-  @Param({ "10" })
+  @Param({ "10", "25" })
   public int instances;
 
   static String B(int count) {
@@ -82,24 +82,11 @@ public class DynamicLoading {
     compiledClasses = new byte[numberOfClasses][];
     out = new Object[numberOfClasses];
     for (int i = 0; i < numberOfClasses; i++) {
-      compiledClasses[i] = InMemoryJavaCompiler.compile("B" + i, B(i));
+      compiledClasses[i] = InMemoryJavaCompiler.compile("B" + i, B(i),
+              "-source", "1.8",
+              "-target", "1.8");
     }
   }
-
-//  @Benchmark
-//  public Object[] loadAndNewInstance(Blackhole bh) throws IllegalAccessException,
-//          InstantiationException, NoSuchMethodException, InvocationTargetException, ClassNotFoundException {
-//    
-//    DynamicLoading.BenchLoader loader = new DynamicLoading.BenchLoader();
-//
-//    // Load and start all the classes.
-//    for (index = 0; index < compiledClasses.length; index++) {
-//      String name = new String("B" + index);
-//      Class c = loader.findClass(name);
-//      out[index] = c.newInstance();
-//    }
-//    return out;
-//  }
 
   @Benchmark
   public Object[] loadAndSeveralNewInstance(Blackhole bh) throws IllegalAccessException,
