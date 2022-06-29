@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, Huawei Technologies Co., Ltd. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,41 +24,43 @@ package org.openjdk.bench.java.security;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import sun.security.util.DisabledAlgorithmConstraints;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.security.AlgorithmConstraints;
+import java.security.CryptoPrimitive;
 import java.util.concurrent.TimeUnit;
+import java.util.EnumSet;
+import java.util.Set;
 
-/**
- * Benchmark measuring DoPrivileged
- */
+import static sun.security.util.DisabledAlgorithmConstraints.PROPERTY_TLS_DISABLED_ALGS;
+
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
+@Fork(jvmArgsAppend = {"-XX:+IgnoreUnrecognizedVMOptions", "--add-exports=java.base/sun.security.util=ALL-UNNAMED"})
 @State(Scope.Thread)
-public class DoPrivileged {
+public class AlgorithmConstraintsPermits {
 
-    private PrivilegedAction<Integer> privilegedAction;
+    AlgorithmConstraints tlsDisabledAlgConstraints;
+    Set<CryptoPrimitive> primitives = EnumSet.of(CryptoPrimitive.KEY_AGREEMENT);
+
+    @Param({"SSLv3", "DES", "NULL", "TLS1.3"})
+    String algorithm;
 
     @Setup
     public void setup() {
-        privilegedAction = () -> 42;
+        tlsDisabledAlgConstraints = new DisabledAlgorithmConstraints(PROPERTY_TLS_DISABLED_ALGS);
     }
 
-    @SuppressWarnings("removal")
     @Benchmark
-    public int test() {
-        return AccessController.doPrivileged(privilegedAction);
+    public boolean permits() {
+        return tlsDisabledAlgConstraints.permits(primitives, algorithm, null);
     }
-
-    @SuppressWarnings("removal")
-    @Benchmark
-    public int testInline() {
-        return AccessController.doPrivileged((PrivilegedAction<Integer>) () -> 42);
-    }
-
 }
+
