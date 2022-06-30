@@ -1,12 +1,10 @@
 /*
- * Copyright (c) 2014 Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.  Oracle designates this
- * particular file as subject to the "Classpath" exception as provided
- * by Oracle in the LICENSE file that accompanied this code.
+ * published by the Free Software Foundation.
  *
  * This code is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -26,11 +24,14 @@ package org.openjdk.bench.java.lang.invoke;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Warmup;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -43,14 +44,18 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
+@Warmup(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
+@Fork(3)
 public class MethodHandlesCatchException {
 
     /**
      * Implementation notes:
      *   - emulating instance method handles because of current issue with instance methods
-     *       (http://monaco.us.oracle.com/detail.jsf?cr=7179751)
      *   - exception is cached to harness the MH code, not exception instantiation
-     *   - measuring two modes: a) always going through normal code path; b) always going through exceptional one
+     *   - measuring two modes:
+     *     a) always going through normal code path;
+     *     b) always going through exceptional one
      *   - baselines do the same thing in pure Java
      */
 
@@ -64,9 +69,15 @@ public class MethodHandlesCatchException {
 
     @Setup
     public void setup() throws Throwable {
-        MethodHandle bodyNormal = MethodHandles.lookup().findStatic(MethodHandlesCatchException.class, "doWorkNormal", MethodType.methodType(void.class, MethodHandlesCatchException.class));
-        MethodHandle bodyExceptional = MethodHandles.lookup().findStatic(MethodHandlesCatchException.class, "doWorkExceptional", MethodType.methodType(void.class, MethodHandlesCatchException.class));
-        MethodHandle fallback = MethodHandles.lookup().findStatic(MethodHandlesCatchException.class, "fallback", MethodType.methodType(void.class, MyException.class, MethodHandlesCatchException.class));
+        MethodHandle bodyNormal = MethodHandles.lookup()
+            .findStatic(MethodHandlesCatchException.class, "doWorkNormal",
+                MethodType.methodType(void.class, MethodHandlesCatchException.class));
+        MethodHandle bodyExceptional = MethodHandles.lookup()
+            .findStatic(MethodHandlesCatchException.class, "doWorkExceptional",
+                MethodType.methodType(void.class, MethodHandlesCatchException.class));
+        MethodHandle fallback = MethodHandles.lookup()
+            .findStatic(MethodHandlesCatchException.class, "fallback",
+                MethodType.methodType(void.class, MyException.class, MethodHandlesCatchException.class));
 
         methNormal = MethodHandles.catchException(bodyNormal, MyException.class, fallback);
         methExceptional = MethodHandles.catchException(bodyExceptional, MyException.class, fallback);
