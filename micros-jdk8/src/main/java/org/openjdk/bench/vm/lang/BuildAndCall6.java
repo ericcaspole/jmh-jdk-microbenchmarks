@@ -51,10 +51,6 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
-/**
- *
- * @author ecaspole
- */
 @State(Scope.Thread)
 @Warmup(iterations = 5, time = 2)
 @Measurement(iterations = 6, time = 2)
@@ -76,17 +72,12 @@ public class BuildAndCall6 {
   Class[] loadedClasses;
   String[] classNames;
 
-//  byte[][] compiledClasses2;
-//  Class[] loadedClasses2;
-//  String[] classNames2;
-
-  Method[] methods1;
-//  Method[] methods2;
-
   Object[] receivers1;
-//  Object[] receivers2;
 
   int index = 0;
+  Map<Object, Method[]> table1 = new HashMap<>();
+  Map<Integer, Object> r1 = new HashMap<>();
+  Map<Integer, String> strings = new HashMap<>();
 
   static String[] searchStrings;
 
@@ -145,29 +136,6 @@ public class BuildAndCall6 {
             + "}";
   }
 
-//  static String A(int count) {
-//    return "public class A" + count + " {"
-//            + "   static int intField = 0;"
-//            + " "
-//            + "   public static Boolean compiledMethod(String s) { "
-//            + "       assert  s != null;"
-//            //                + "       System.out.println( s );"
-//            + "       Boolean x = s.contains(\"z\");"
-//            + "       Boolean y = otherMethod(s);"
-//            + "       intField += ((x == Boolean.TRUE && y == Boolean.TRUE) ? 1 : -1);"
-//            + "       return x || y;"
-//            + "   }"
-//            + " "
-//            + "   public static Boolean otherMethod(String s) { "
-//            + "       assert  s != null;"
-//            //                + "       System.out.println( s );"
-//            //                + "       (new Throwable()).printStackTrace();"
-//            + "       Boolean x = s.contains(\"y\");"
-//            + "       intField += (x == Boolean.TRUE ? 1 : -1);"
-//            + "       return x;"
-//            + "   }"
-//            + "}";
-//  }
 
   class BenchLoader extends ClassLoader {
 
@@ -183,13 +151,9 @@ public class BuildAndCall6 {
     protected Class<?> findClass(String name) throws ClassNotFoundException {
       if (name.equals(classNames[index] /* "B" + index */)) {
         assert compiledClasses[index] != null;
-        return defineClass(name, compiledClasses[index], 0,
+        return defineClass(name, compiledClasses[index],
+                0,
                 (compiledClasses[index]).length);
-//      } else if (name.equals(classNames2[index])) {
-//        assert compiledClasses2[index] != null;
-//        return defineClass(name, compiledClasses2[index], 0,
-//                (compiledClasses2[index]).length);
-//
       } else {
         return super.findClass(name);
       }
@@ -197,11 +161,6 @@ public class BuildAndCall6 {
   }
 
   BuildAndCall6.BenchLoader loader1 = new BuildAndCall6.BenchLoader();
-  Map<Object, Method[]> table1 = new HashMap<>();
-//  Map<Integer,Method> table2 = new HashMap<>();
-  Map<Integer, Object> r1 = new HashMap<>();
-//  Map<Integer, Object> r2 = new HashMap<>();
-  Map<Integer, String> strings = new HashMap<>();
 
   static String nextText(int size) {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
@@ -225,20 +184,11 @@ public class BuildAndCall6 {
     compiledClasses = new byte[numberOfClasses][];
     loadedClasses = new Class[numberOfClasses];
     classNames = new String[numberOfClasses];
-    methods1 = new Method[numberOfClasses];
     receivers1 = new Object[numberOfClasses];
-
-//    compiledClasses2 = new byte[numberOfClasses][];
-//    loadedClasses2 = new Class[numberOfClasses];
-//    classNames2 = new String[numberOfClasses];
-//    methods2 = new Method[numberOfClasses];
-//    receivers2 = new Object[numberOfClasses];
 
     for (int i = 0; i < numberOfClasses; i++) {
       classNames[i] = "B" + i;
-//      classNames2[i] = "A" + i;
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
-//      compiledClasses2[i] = InMemoryJavaCompiler.compile(classNames2[i], A(i));
     }
 
     searchStrings = new String[numberOfStrings];
@@ -249,17 +199,11 @@ public class BuildAndCall6 {
 
     for (index = 0; index < compiledClasses.length; index++) {
       Class c = loader1.findClass(classNames[index]);
-//      Class c2 = loader1.findClass(classNames2[index]);
       loadedClasses[index] = c;
-//      loadedClasses2[index] = c2;
       receivers1[index] = c.newInstance();
-//      receivers2[index] = c2.newInstance();
 
       r1.put(index, receivers1[index]);
-//      r2.put(index, receivers2[index]);
 
-//            methods1[index] = c.getMethod("compiledMethod", String.class);
-//            methods2[index] = c2.getMethod("compiledMethod", String.class);
       Method[] methods = new Method[4];
       IntStream.range(0, methodNames.length).forEach(m -> {
         try {
@@ -273,7 +217,6 @@ public class BuildAndCall6 {
       });
 
       table1.put(receivers1[index], methods);
-//            table2.put( index, methods2[index]);
 
       // Warmup the methods to get compiled
       IntStream.range(0, 12000)/* .parallel() */.forEach(x -> {
@@ -298,7 +241,7 @@ public class BuildAndCall6 {
   Integer work(Blackhole bh) throws Exception {
     Integer sum = 0;
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    // Call each method once
+    // Call a random method of each class once
     for (index = 1; index < compiledClasses.length; index++) {
       try {
         int whichStr = tlr.nextInt(1, numberOfStrings);
@@ -336,7 +279,7 @@ public class BuildAndCall6 {
     work(bh);
   }
 
-  // Calls random methods on each invocation
+  // Calls a random method on a random class instance on each invocation
   Integer work2(Blackhole bh) throws Exception {
     Integer sum = 0;
     Boolean result = Boolean.FALSE;
@@ -347,15 +290,12 @@ public class BuildAndCall6 {
 
     try {
       assert receivers1[which] != null;
-//      assert receivers2[which] != null;
       assert strings.get(whichStr) != null : whichStr + " no string";
       Object r = r1.get(which);
       String s = strings.get(whichStr);
       Method m = table1.get(r)[whichM];
             
       result = (Boolean) m.invoke(r, s);
-//      result |= (Boolean) table2.get(which).invoke(r2.get(which), strings.get(whichStr));
-
       sum += (result == true ? 1 : 0);
     } catch (Exception e) {
       System.out.println("Exception = " + which);
@@ -366,19 +306,15 @@ public class BuildAndCall6 {
     return sum;
   }
 
-//  @Benchmark
-//  @Threads(4)
-//  public void doRandom4t(Blackhole bh) throws Exception {
-//    work2(bh);
-//  }
-//
-//  @Benchmark
-//  @Threads(1)
-////  @Warmup(iterations = 5, time = 2)
-////  @Measurement(iterations = 8, time = 2)
-////  @BenchmarkMode(Mode.AverageTime)
-////  @OutputTimeUnit(TimeUnit.MICROSECONDS)
-//  public void doRandom1t(Blackhole bh) throws Exception {
-//    work2(bh);
-//  }
+  @Benchmark
+  @Threads(4)
+  public void doRandom4t(Blackhole bh) throws Exception {
+    work2(bh);
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void doRandom1t(Blackhole bh) throws Exception {
+    work2(bh);
+  }
 }
