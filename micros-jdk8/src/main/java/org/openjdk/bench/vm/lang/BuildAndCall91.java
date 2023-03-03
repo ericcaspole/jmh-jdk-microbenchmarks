@@ -57,7 +57,7 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Fork(value = 2)
-public class BuildAndCall9 {
+public class BuildAndCall91 {
 
   @Param({ "025", "100", "250", "500" })
   public int numberOfClasses;
@@ -74,7 +74,6 @@ public class BuildAndCall9 {
   int index = 0;
   Map<Object, Method[]> table1 = new HashMap<>();
   Map<Integer, Object> r1 = new HashMap<>();
-//  Map<Integer, String> strings = new HashMap<>();
 
 
   static String B(int count) {
@@ -82,7 +81,6 @@ public class BuildAndCall9 {
             + " "
             + " "
             + "   public Boolean deep( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
             + "       if (depth > 0) {"
             + "         return deepB(--depth);"
             + "       } else {"
@@ -92,7 +90,6 @@ public class BuildAndCall9 {
             + " "
             + " "
             + "   public Boolean deepB( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
             + "       if (depth > 0) {"
             + "         return deepC(--depth);"
             + "       } else {"
@@ -102,7 +99,6 @@ public class BuildAndCall9 {
             + " "
             + " "
             + "   public Boolean deepC( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
             + "       if (depth > 0) {"
             + "         return deepD(--depth);"
             + "       } else {"
@@ -111,7 +107,6 @@ public class BuildAndCall9 {
             + "   }"
             + " "
             + "   public Boolean deepD( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
             + "       if (depth > 0) {"
             + "         return deep(--depth);"
             + "       } else {"
@@ -145,7 +140,7 @@ public class BuildAndCall9 {
     }
   }
 
-  BuildAndCall9.BenchLoader loader1 = new BuildAndCall9.BenchLoader();
+  BuildAndCall91.BenchLoader loader1 = new BuildAndCall91.BenchLoader();
 
   static String nextText(int size) {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
@@ -220,12 +215,13 @@ public class BuildAndCall9 {
   Integer work(Blackhole bh) throws Exception {
     Integer sum = 0;
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    // Call a random method of each class once
+    // Call the deep() method of each class once
     for (index = 1; index < compiledClasses.length; index++) {
       try {
         int whichM = tlr.nextInt(methodNames.length);
         Object r = r1.get(index);
-        Method m = table1.get(r)[whichM];
+//        Method m = table1.get(r)[whichM];
+        Method m = table1.get(r)[0];
         assert m != null;
 //      System.out.println(m.getName());
         
