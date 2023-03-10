@@ -51,154 +51,103 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
-@State(Scope.Thread)
-@Warmup(iterations = 6, time = 2)
+@State(Scope.Benchmark)
+@Warmup(iterations = 20, time = 3)
 @Measurement(iterations = 8, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-@Fork(value = 2)
-public class BuildAndCall71 {
+public class BuildAndCall95 {
 
   @Param({ "025", "100", "250", "500" })
   public int numberOfClasses;
 
-  @Param({"128"})
+  @Param({"20"})
   public int recurse;
 
   byte[][] compiledClasses;
   Class[] loadedClasses;
   String[] classNames;
-
   Object[] receivers1;
 
   int index = 0;
   Map<Object, Method[]> table1 = new HashMap<>();
   Map<Integer, Object> r1 = new HashMap<>();
-
+  List<Map> mapList = new ArrayList();
+    
+  static final String methodNames[] = {
+    "get",
+    "get2",
+    "get3",
+    "get4",
+    "get5",
+    "get6"
+  };
 
   static String B(int count) {
-    return "public class B" + count + " {"
-            + "   static int intFieldA = 0;"
-            + "   static int padAA = 0;"
-            + "   static int padAB = 0;"
-            + "   static int padAC = 0;"
-            + "   static int padAD = 0;"
-            + "   static int padAE = 0;"
-            + "   static int padAF = 0;"
-            + "   static int padAG = 0;"
-            + "   static int padAH = 0;"
-            + "   static int padAI = 0;"
-            + "   static int padAJ = 0;"
-            + "   static int padAK = 0;"
-            + "   static int padAL = 0;"
-            + "   static int padAM = 0;"
-            + "   static int padAN = 0;"
-            + "   static int padAO = 0;"
-            + "   static int padAP = 0;"
-            + "   static int padAQ = 0;"
-            + "   static int padAR = 0;"
-            + "   static int padAS = 0;"
-            + "   static int padAT = 0;"
-            + "   static int intFieldB = 0;"
-            + "   static int padBA = 0;"
-            + "   static int padBB = 0;"
-            + "   static int padBC = 0;"
-            + "   static int padBD = 0;"
-            + "   static int padBE = 0;"
-            + "   static int padBF = 0;"
-            + "   static int padBG = 0;"
-            + "   static int padBH = 0;"
-            + "   static int padBI = 0;"
-            + "   static int padBJ = 0;"
-            + "   static int padBK = 0;"
-            + "   static int padBL = 0;"
-            + "   static int padBM = 0;"
-            + "   static int padBN = 0;"
-            + "   static int padBO = 0;"
-            + "   static int padBP = 0;"
-            + "   static int padBQ = 0;"
-            + "   static int padBR = 0;"
-            + "   static int padBS = 0;"
-            + "   static int padBT = 0;"
-            + "   static int intFieldC = 0;"
-            + "   static int padCA = 0;"
-            + "   static int padCB = 0;"
-            + "   static int padCC = 0;"
-            + "   static int padCD = 0;"
-            + "   static int padCE = 0;"
-            + "   static int padCF = 0;"
-            + "   static int padCG = 0;"
-            + "   static int padCH = 0;"
-            + "   static int padCI = 0;"
-            + "   static int padCJ = 0;"
-            + "   static int padCK = 0;"
-            + "   static int padCL = 0;"
-            + "   static int padCM = 0;"
-            + "   static int padCN = 0;"
-            + "   static int padCO = 0;"
-            + "   static int padCP = 0;"
-            + "   static int padCQ = 0;"
-            + "   static int padCR = 0;"
-            + "   static int padCS = 0;"
-            + "   static int padCT = 0;"
-            + "   static int intFieldD = 0;"
+    return    "import java.util.*; "
+            + " "
+            + "public class B" + count + " {"
             + " "
             + " "
-            + "   int instA = 0;"
-            + "   int instB = 0;"
-            + "   int instC = 0;"
-            + "   int instD = 0;"
-            + " "
-            + " "
-            + "   public Boolean deep( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
+            + "   public Integer get( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instA += ((depth % 2) + intFieldA);"
-            + "         return deepB(--depth);"
+            + "         return (Integer) m.get(k) + get2(m, k, --depth);"
             + "       } else {"
-            + "         intFieldA = depth;"
-            + "         return instA % 2 == 0;"
+            + "         return (Integer) m.get(k)+ 10;"            
+            + "       }"
+            + "   }"
+            + " "
+            + "   public Integer get2( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
+            + "       if (depth > 0) {"
+            + "         return (Integer) m.get(k) + get3(m, k, --depth);"
+            + "       } else {"
+            + "         return (Integer) m.get(k)+ 20;"            
+            + "       }"
+            + "   }"
+            + " "
+            + "   public Integer get3( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
+            + "       if (depth > 0) {"
+            + "         return (Integer) m.get(k) + get4(m, k, --depth);"
+            + "       } else {"
+            + "         return (Integer) m.get(k)+ 30;"            
             + "       }"
             + "   }"
             + " "
             + " "
-            + "   public Boolean deepB( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
+            + "   public Integer get4( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instB += ((depth % 2) + intFieldB);"
-            + "         return deepC(--depth);"
+            + "         return (Integer) m.get(k) + get5(m, k, --depth);"
             + "       } else {"
-            + "         intFieldB = depth;"
-            + "         return instB % 2 == 0;"
+            + "         return (Integer) m.get(k)+ 40;"            
             + "       }"
             + "   }"
             + " "
             + " "
-            + "   public Boolean deepC( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
+            + "   public Integer get5( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instC += ((depth % 2) + intFieldC);"
-            + "         return deepD(--depth);"
+            + "         return (Integer) m.get(k) + get6(m, k, --depth);"
             + "       } else {"
-            + "         intFieldC = depth;"
-            + "         return instC % 2 == 0;"
+            + "         return (Integer) m.get(k)+ 50;"            
             + "       }"
             + "   }"
             + " "
-            + "   public Boolean deepD( Integer depth) { "
-//            + "       System.out.println( this.getClass().getName() + depth );"
+            + "   public Integer get6( Map m, String k, Integer depth) { "
+//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instD += ((depth % 2) + intFieldD);"
-            + "         return deep(--depth);"
+            + "         return (Integer) m.get(k) + get(m, k, --depth);"
             + "       } else {"
-            + "         intFieldD = depth;"
-            + "         return instD % 2 == 0;"
+            + "         return (Integer) m.get(k)+ 60;"            
             + "       }"
             + "   }"
             + "}";
   }
   
-  
+
   class BenchLoader extends ClassLoader {
 
     BenchLoader() {
@@ -222,9 +171,12 @@ public class BuildAndCall71 {
     }
   }
 
-  BuildAndCall71.BenchLoader loader1 = new BuildAndCall71.BenchLoader();
+  BuildAndCall95.BenchLoader loader1 = new BuildAndCall95.BenchLoader();
 
-  static String nextText(int size) {
+  String k = "key";
+  Integer v = 1000;
+
+    static String nextText(int size) {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
     String word = tlr.ints(97, 123).limit(size).boxed().
             map(x -> x.toString()).
@@ -234,13 +186,7 @@ public class BuildAndCall71 {
     return word;
   }
 
-  final String methodNames[] = {
-    "deep",
-    "deepB",
-    "deepC",
-    "deepD"
-  };
-
+    
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
     compiledClasses = new byte[numberOfClasses][];
@@ -248,11 +194,18 @@ public class BuildAndCall71 {
     classNames = new String[numberOfClasses];
     receivers1 = new Object[numberOfClasses];
 
+    mapList.add( new HashMap());
+    mapList.add( new LinkedHashMap());
+    mapList.add( new WeakHashMap());
+
+    mapList.get(0).put(k, v);
+    mapList.get(1).put(k, v);
+    mapList.get(2).put(k, v);
+
     for (int i = 0; i < numberOfClasses; i++) {
       classNames[i] = "B" + i;
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
     }
-
 
     for (index = 0; index < compiledClasses.length; index++) {
       Class c = loader1.findClass(classNames[index]);
@@ -264,7 +217,7 @@ public class BuildAndCall71 {
       Method[] methods = new Method[methodNames.length];
       IntStream.range(0, methodNames.length).forEach(m -> {
         try {
-          methods[m] = c.getMethod(methodNames[m], Integer.class);
+          methods[m] = c.getMethod(methodNames[m], java.util.Map.class, String.class, Integer.class);
         } catch (Exception e) {
           System.out.println("Exception = " + e);
           e.printStackTrace();
@@ -275,13 +228,13 @@ public class BuildAndCall71 {
 
       table1.put(receivers1[index], methods);
 
-      // Warmup the methods to get compiled
+    // Warmup the methods to get compiled
       IntStream.range(0, 12000)/* .parallel() */.forEach(x -> {
                 IntStream.range(0, methodNames.length).forEach(m -> {
                   try {
                     Object r = receivers1[index];
                     Method[] mi = table1.get(r);
-                    mi[m].invoke(r, 32);
+                    mi[m].invoke(r, mapList.get(0), k, 5);
                   } catch (Exception e) {
                     System.out.println("Exception = " + e);
                     e.printStackTrace();
@@ -298,19 +251,26 @@ public class BuildAndCall71 {
   Integer work(Blackhole bh) throws Exception {
     Integer sum = 0;
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
+
     // Call a random method of each class once
-    for (index = 1; index < compiledClasses.length; index++) {
+    for (int index = 1; index < compiledClasses.length; index++) {
       try {
         int whichM = tlr.nextInt(methodNames.length);
         Object r = r1.get(index);
+        assert r != null : "no receiver for index " + index;
         Method m = table1.get(r)[whichM];
         assert m != null;
 //      System.out.println(m.getName());
+        int whichMap = tlr.nextInt(mapList.size());
         
-        Boolean result = (Boolean) m.invoke(r, recurse);
-        sum += (result == true ? 1 : 0);
+        Integer result = (Integer) m.invoke(r,mapList.get(whichMap),k, recurse);
+        
+        assert result != null && result >= v;
+//      System.out.println( "result = " + result);
+        sum += result;
       } catch (Exception e) {
         System.out.println("Exception = " + e);
+        e.printStackTrace();
       }
     }
     return sum;
@@ -318,19 +278,43 @@ public class BuildAndCall71 {
 
   @Benchmark
   @Threads(4)
-  public void doWork4t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork4tLgPg(Blackhole bh) throws Exception {
     work(bh);
   }
 
   @Benchmark
   @Threads(2)
-  public void doWork2t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork2tLgPg(Blackhole bh) throws Exception {
     work(bh);
   }
 
   @Benchmark
   @Threads(1)
-  public void doWork1t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork1tLgPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(4)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork4tDefPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(2)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork2tDefPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(1)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork1tDefPg(Blackhole bh) throws Exception {
     work(bh);
   }
 }

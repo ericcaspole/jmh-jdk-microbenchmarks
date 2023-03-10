@@ -52,11 +52,10 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
 @State(Scope.Thread)
-@Warmup(iterations = 6, time = 2)
+@Warmup(iterations = 20, time = 3)
 @Measurement(iterations = 8, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-@Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g"})
 public class BuildAndCall93 {
 
   @Param({ "025", "100", "250", "500" })
@@ -285,19 +284,43 @@ public class BuildAndCall93 {
 
   @Benchmark
   @Threads(4)
-  public void doWork4t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork4tLgPg(Blackhole bh) throws Exception {
     work(bh);
   }
 
   @Benchmark
   @Threads(2)
-  public void doWork2t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork2tLgPg(Blackhole bh) throws Exception {
     work(bh);
   }
 
   @Benchmark
   @Threads(1)
-  public void doWork1t(Blackhole bh) throws Exception {
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-XX:+UseLargePages", "-Xlog:pagesize*=debug"})
+  public void doWork1tLgPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(4)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork4tDefPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(2)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork2tDefPg(Blackhole bh) throws Exception {
+    work(bh);
+  }
+
+  @Benchmark
+  @Threads(1)
+  @Fork(value = 2, jvmArgs = {"-XX:ReservedCodeCacheSize=1g", "-Xlog:pagesize*=debug" })
+  public void doWork1tDefPg(Blackhole bh) throws Exception {
     work(bh);
   }
 }

@@ -52,8 +52,8 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
 @State(Scope.Thread)
-@Warmup(iterations = 6, time = 2)
-@Measurement(iterations = 8, time = 2)
+@Warmup(iterations = 10, time = 2)
+@Measurement(iterations = 7, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Fork(value = 2)
@@ -62,7 +62,7 @@ public class BuildAndCall70 {
   @Param({ "025", "100", "250", "500" })
   public int numberOfClasses;
 
-  @Param({"128"})
+  @Param({"20"})
   public int recurse;
 
   byte[][] compiledClasses;
