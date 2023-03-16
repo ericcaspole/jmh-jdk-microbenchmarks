@@ -53,7 +53,7 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @Measurement(iterations = 25, time = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
-public class BuildAndCall97 {
+public class BuildAndCall98 {
 
   @Param({ "100", /* "250", */ "1000" })
   public int numberOfClasses;
@@ -79,88 +79,12 @@ public class BuildAndCall97 {
             + " "
             + "public class B" + count + " {"
             + " "
-            + "   static int intFieldA = 0;"
-            + "   static int intFieldB = 0;"
-            + "   static int intFieldC = 0;"
-            + "   static int intFieldD = 0;"
-            + " "
-            + " "
-            + "   int instA = 0;"
-            + "    int padAA = 0;"
-            + "    int padAB = 0;"
-            + "    int padAC = 0;"
-            + "    int padAD = 0;"
-            + "    int padAE = 0;"
-            + "    int padAF = 0;"
-            + "    int padAG = 0;"
-            + "    int padAH = 0;"
-            + "    int padAI = 0;"
-            + "    int padAJ = 0;"
-            + "    int padAK = 0;"
-            + "    int padAL = 0;"
-            + "    int padAM = 0;"
-            + "    int padAN = 0;"
-            + "    int padAO = 0;"
-            + "    int padAP = 0;"
-            + "    int padAQ = 0;"
-            + "    int padAR = 0;"
-            + "    int padAS = 0;"
-            + "    int padAT = 0;"
-            + " "
-            + "   int instB = 0;"
-            + "    int padBA = 0;"
-            + "    int padBB = 0;"
-            + "    int padBC = 0;"
-            + "    int padBD = 0;"
-            + "    int padBE = 0;"
-            + "    int padBF = 0;"
-            + "    int padBG = 0;"
-            + "    int padBH = 0;"
-            + "    int padBI = 0;"
-            + "    int padBJ = 0;"
-            + "    int padBK = 0;"
-            + "    int padBL = 0;"
-            + "    int padBM = 0;"
-            + "    int padBN = 0;"
-            + "    int padBO = 0;"
-            + "    int padBP = 0;"
-            + "    int padBQ = 0;"
-            + "    int padBR = 0;"
-            + "    int padBS = 0;"
-            + "    int padBT = 0;"
-            + " "
-            + "   int instC = 0;"
-            + "    int padCA = 0;"
-            + "    int padCB = 0;"
-            + "    int padCC = 0;"
-            + "    int padCD = 0;"
-            + "    int padCE = 0;"
-            + "    int padCF = 0;"
-            + "    int padCG = 0;"
-            + "    int padCH = 0;"
-            + "    int padCI = 0;"
-            + "    int padCJ = 0;"
-            + "    int padCK = 0;"
-            + "    int padCL = 0;"
-            + "    int padCM = 0;"
-            + "    int padCN = 0;"
-            + "    int padCO = 0;"
-            + "    int padCP = 0;"
-            + "    int padCQ = 0;"
-            + "    int padCR = 0;"
-            + "    int padCS = 0;"
-            + "    int padCT = 0;"
-            + " "
-            + "   int instD = 0;"
-            + " "
             + " "
             + "   public Integer get( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instA += ((depth % 2) + intFieldA);"
             + "         return (Integer) m.get(k) + get2(m, k, --depth);"
             + "       } else {"
-            + "         intFieldA = depth;"
             + "         return (Integer) m.get(k)+ 10;"
             + "       }"
             + "   }"
@@ -168,10 +92,8 @@ public class BuildAndCall97 {
             + "   public Integer get2( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instB += ((depth % 2) + intFieldB);"
             + "         return (Integer) m.get(k) + get3(m, k, --depth);"
             + "       } else {"
-            + "         intFieldB = depth;"
             + "         return (Integer) m.get(k)+ 20;"
             + "       }"
             + "   }"
@@ -179,10 +101,8 @@ public class BuildAndCall97 {
             + "   public Integer get3( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instC += ((depth % 2) + intFieldC);"
             + "         return (Integer) m.get(k) + get4(m, k, --depth);"
             + "       } else {"
-            + "         intFieldC = depth;"
             + "         return (Integer) m.get(k)+ 30;"
             + "       }"
             + "   }"
@@ -191,10 +111,8 @@ public class BuildAndCall97 {
             + "   public Integer get4( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instD += ((depth % 2) + intFieldD);"
             + "         return (Integer) m.get(k) + get5(m, k, --depth);"
             + "       } else {"
-            + "         intFieldD = depth;"
             + "         return (Integer) m.get(k)+ 40;"
             + "       }"
             + "   }"
@@ -205,7 +123,7 @@ public class BuildAndCall97 {
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get6(m, k, --depth);"
             + "       } else {"
-            + "         return (Integer) m.get(k)+ instA;"
+            + "         return (Integer) m.get(k)+ 50;"
             + "       }"
             + "   }"
             + " "
@@ -214,7 +132,7 @@ public class BuildAndCall97 {
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get(m, k, --depth);"
             + "       } else {"
-            + "         return (Integer) m.get(k)+ instB;"
+            + "         return (Integer) m.get(k)+ 60;"
             + "       }"
             + "   }"
             + "}";
@@ -244,7 +162,7 @@ public class BuildAndCall97 {
     }
   }
 
-  BuildAndCall97.BenchLoader loader1 = new BuildAndCall97.BenchLoader();
+  BuildAndCall98.BenchLoader loader1 = new BuildAndCall98.BenchLoader();
 
   final String k = "key";
   final Integer v = 1000;
@@ -269,11 +187,10 @@ public class BuildAndCall97 {
   };
 
 
-
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
     Object[] receivers1;
-
+    
     compiledClasses = new byte[numberOfClasses][];
     loadedClasses = new Class[numberOfClasses];
     classNames = new String[numberOfClasses];
