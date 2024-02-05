@@ -22,17 +22,21 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.openjdk.bench.vm.lang;
+package org.openjdk.bench.vm.compiler;
 
+import java.lang.management.*;
 import java.lang.reflect.Method;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.CompilerControl;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
@@ -49,22 +53,19 @@ import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
 @State(Scope.Benchmark)
-//@Warmup(iterations = 75, time = 2)
-//@Measurement(iterations = 25, time = 2)
-@BenchmarkMode(Mode.SingleShotTime)
-@OutputTimeUnit(TimeUnit.SECONDS)
-public class BuildAndCall974 {
+@Warmup(iterations = 10, time = 3)
+@Measurement(iterations = 10, time = 3)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
+public class CleanupStress {
 
-  @Param({  "12000" })
+  @Param({  "100" })
   public int numberOfClasses;
 
-  @Param({  "500" /* , "1000", "3000", "5000" */ })
-  public int rangeOfClasses;
-
-  @Param({"20"})
+  @Param({"47"})
   public int recurse;
 
-  @Param({"1000"})
+  @Param({"10"})
   public int instanceCount;
 
   byte[][] compiledClasses;
@@ -72,87 +73,102 @@ public class BuildAndCall974 {
   String[] classNames;
 
   int index = 0;
-  Map<Object, Method[]> table1 = new HashMap<>();
+  Map<Object, Method[]> methodMap = new HashMap<>();
   List<Map> mapList = new ArrayList();
-  Map<Class,Object[]> instList = new HashMap<>();
+  Map<Class,List> instList = new HashMap<>();
 
+    static final String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-  static String B(int count) {
-    return    "import java.util.*; "
+    static String nextText(int size) {
+        ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    
+        String word = tlr.ints(0,52).limit(size).boxed().
+                map(x -> alphabet.charAt(x)).
+                map(x -> x.toString()).
+                collect(Collectors.joining());
+    
+        return word;
+      }
+
+    static String B(int count, String filler) {
+      return    "import java.util.*; "
             + " "
             + "public class B" + count + " {"
             + " "
-            + "   static int intFieldA = 0;"
-            + "   static int intFieldB = 0;"
-            + "   static int intFieldC = 0;"
-            + "   static int intFieldD = 0;"
+            + "   static int intFieldA" + filler + " = 0;"
+            + "   static int intFieldB" + filler + " = 0;"
+            + "   static int intFieldC" + filler + " = 0;"
+            + "   static int intFieldD" + filler + " = 0;"
             + " "
             + " "
             + "   int instA = 0;"
-            + "    int padAA = 0;"
-            + "    int padAB = 0;"
-            + "    int padAC = 0;"
-            + "    int padAD = 0;"
-            + "    int padAE = 0;"
-            + "    int padAF = 0;"
-            + "    int padAG = 0;"
-            + "    int padAH = 0;"
-            + "    int padAI = 0;"
-            + "    int padAJ = 0;"
-            + "    int padAK = 0;"
-            + "    int padAL = 0;"
-            + "    int padAM = 0;"
-            + "    int padAN = 0;"
-            + "    int padAO = 0;"
-            + "    int padAP = 0;"
-            + "    int padAQ = 0;"
-            + "    int padAR = 0;"
-            + "    int padAS = 0;"
-            + "    int padAT = 0;"
-            + " "
-            + "   int instB = 0;"
-            + "    int padBA = 0;"
-            + "    int padBB = 0;"
-            + "    int padBC = 0;"
-            + "    int padBD = 0;"
-            + "    int padBE = 0;"
-            + "    int padBF = 0;"
-            + "    int padBG = 0;"
-            + "    int padBH = 0;"
-            + "    int padBI = 0;"
-            + "    int padBJ = 0;"
-            + "    int padBK = 0;"
-            + "    int padBL = 0;"
-            + "    int padBM = 0;"
-            + "    int padBN = 0;"
-            + "    int padBO = 0;"
-            + "    int padBP = 0;"
-            + "    int padBQ = 0;"
-            + "    int padBR = 0;"
-            + "    int padBS = 0;"
-            + "    int padBT = 0;"
-            + " "
-            + "   int instC = 0;"
-            + "    int padCA = 0;"
-            + "    int padCB = 0;"
-            + "    int padCC = 0;"
-            + "    int padCD = 0;"
-            + "    int padCE = 0;"
-            + "    int padCF = 0;"
-            + "    int padCG = 0;"
-            + "    int padCH = 0;"
-            + "    int padCI = 0;"
-            + "    int padCJ = 0;"
-            + "    int padCK = 0;"
-            + "    int padCL = 0;"
-            + "    int padCM = 0;"
-            + "    int padCN = 0;"
-            + "    int padCO = 0;"
-            + "    int padCP = 0;"
-            + "    int padCQ = 0;"
-            + "    int padCR = 0;"
-            + "    int padCS = 0;"
-            + "    int padCT = 0;"
+                + " "
+                + "    int padAA" + filler + " = 0;"
+                + "    int padAB" + filler + " = 0;"
+                + "    int padAC" + filler + " = 0;"
+                + "    int padAD" + filler + " = 0;"
+                + "    int padAE" + filler + " = 0;"
+                + "    int padAF" + filler + " = 0;"
+                + "    int padAG" + filler + " = 0;"
+                + "    int padAH" + filler + " = 0;"
+                + "    int padAI" + filler + " = 0;"
+                + "    int padAJ" + filler + " = 0;"
+                + "    int padAK" + filler + " = 0;"
+                + "    int padAL" + filler + " = 0;"
+                + "    int padAM" + filler + " = 0;"
+                + "    int padAN" + filler + " = 0;"
+                + "    int padAO" + filler + " = 0;"
+                + "    int padAP" + filler + " = 0;"
+                + "    int padAQ" + filler + " = 0;"
+                + "    int padAR" + filler + " = 0;"
+                + "    int padAS" + filler + " = 0;"
+                + "    int padAT" + filler + " = 0;"
+                + " "
+                + "    int instB = 0;"
+                + " "
+                + "    int padBA" + filler + " = 0;"
+                + "    int padBB" + filler + " = 0;"
+                + "    int padBC" + filler + " = 0;"
+                + "    int padBD" + filler + " = 0;"
+                + "    int padBE" + filler + " = 0;"
+                + "    int padBF" + filler + " = 0;"
+                + "    int padBG" + filler + " = 0;"
+                + "    int padBH" + filler + " = 0;"
+                + "    int padBI" + filler + " = 0;"
+                + "    int padBJ" + filler + " = 0;"
+                + "    int padBK" + filler + " = 0;"
+                + "    int padBL" + filler + " = 0;"
+                + "    int padBM" + filler + " = 0;"
+                + "    int padBN" + filler + " = 0;"
+                + "    int padBO" + filler + " = 0;"
+                + "    int padBP" + filler + " = 0;"
+                + "    int padBQ" + filler + " = 0;"
+                + "    int padBR" + filler + " = 0;"
+                + "    int padBS" + filler + " = 0;"
+                + "    int padBT" + filler + " = 0;"
+                + " "
+                + "    int instC = 0;"
+                + " "
+                + "    int padCA" + filler + " = 0;"
+                + "    int padCB" + filler + " = 0;"
+                + "    int padCC" + filler + " = 0;"
+                + "    int padCD" + filler + " = 0;"
+                + "    int padCE" + filler + " = 0;"
+                + "    int padCF" + filler + " = 0;"
+                + "    int padCG" + filler + " = 0;"
+                + "    int padCH" + filler + " = 0;"
+                + "    int padCI" + filler + " = 0;"
+                + "    int padCJ" + filler + " = 0;"
+                + "    int padCK" + filler + " = 0;"
+                + "    int padCL" + filler + " = 0;"
+                + "    int padCM" + filler + " = 0;"
+                + "    int padCN" + filler + " = 0;"
+                + "    int padCO" + filler + " = 0;"
+                + "    int padCP" + filler + " = 0;"
+                + "    int padCQ" + filler + " = 0;"
+                + "    int padCR" + filler + " = 0;"
+                + "    int padCS" + filler + " = 0;"
+                + "    int padCT" + filler + " = 0;"
             + " "
             + "   int instD = 0;"
             + " "
@@ -160,21 +176,21 @@ public class BuildAndCall974 {
             + "   public Integer get( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instA += ((depth % 2) + intFieldA);"
+            + "         instA += ((depth % 2) + intFieldA" + filler + " );"
             + "         return (Integer) m.get(k) + get2(m, k, --depth);"
             + "       } else {"
-            + "         intFieldA = depth;"
+            + "         intFieldA" + filler + "  = depth;"
             + "         return (Integer) m.get(k)+ 10;"
             + "       }"
             + "   }"
             + " "
-            + "   public Integer get2( Map m, String k, Integer depth) { "
+            + "   public synchronized Integer get2( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instB += ((depth % 2) + intFieldB);"
+            + "         instB += ((depth % 2) + intFieldB" + filler + " );"
             + "         return (Integer) m.get(k) + get3(m, k, --depth);"
             + "       } else {"
-            + "         intFieldB = depth;"
+            + "         intFieldB" + filler + "  = depth;"
             + "         return (Integer) m.get(k)+ 20;"
             + "       }"
             + "   }"
@@ -182,10 +198,10 @@ public class BuildAndCall974 {
             + "   public Integer get3( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instC += ((depth % 2) + intFieldC);"
+            + "         instC += ((depth % 2) + intFieldC" + filler + " );"
             + "         return (Integer) m.get(k) + get4(m, k, --depth);"
             + "       } else {"
-            + "         intFieldC = depth;"
+            + "         intFieldC" + filler + "  = depth;"
             + "         return (Integer) m.get(k)+ 30;"
             + "       }"
             + "   }"
@@ -194,10 +210,10 @@ public class BuildAndCall974 {
             + "   public Integer get4( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
-            + "         instD += ((depth % 2) + intFieldD);"
+            + "         instD += ((depth % 2) + intFieldD" + filler + " );"
             + "         return (Integer) m.get(k) + get5(m, k, --depth);"
             + "       } else {"
-            + "         intFieldD = depth;"
+            + "         intFieldD" + filler + "  = depth;"
             + "         return (Integer) m.get(k)+ 40;"
             + "       }"
             + "   }"
@@ -221,7 +237,7 @@ public class BuildAndCall974 {
             + "       }"
             + "   }"
             + " "
-            + "   public Integer get7( Map m, String k, Integer depth) { "
+            + "   public  Integer get7( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get8(m, k, --depth);"
@@ -239,7 +255,7 @@ public class BuildAndCall974 {
             + "       }"
             + "   }"
             + " "
-            + "   public Integer get9( Map m, String k, Integer depth) { "
+            + "   public synchronized Integer get9( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get10(m, k, --depth);"
@@ -249,7 +265,6 @@ public class BuildAndCall974 {
             + "   }"
             + " "
             + "   public Integer get10( Map m, String k, Integer depth) { "
-//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get11(m, k, --depth);"
             + "       } else {"
@@ -258,7 +273,6 @@ public class BuildAndCall974 {
             + "   }"
             + " "
             + "   public Integer get11( Map m, String k, Integer depth) { "
-//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get12(m, k, --depth);"
             + "       } else {"
@@ -267,7 +281,10 @@ public class BuildAndCall974 {
             + "   }"
             + " "
             + "   public Integer get12( Map m, String k, Integer depth) { "
-//            + "         System.out.println ( m + \" / \" + k);"
+            + " try { "
+            + "     if (depth % 19 == 0 ) { Thread.sleep((depth % 11) /* + 11 */); } "
+            + " } catch (Exception e) {} "
+            + " "
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get(m, k, --depth);"
             + "       } else {"
@@ -301,29 +318,24 @@ public class BuildAndCall974 {
     }
   }
 
-  BuildAndCall974.BenchLoader loader1 = new BuildAndCall974.BenchLoader();
+  CleanupStress.BenchLoader loader1 = new CleanupStress.BenchLoader();
 
   final String k = "key";
   final Integer v = 1000;
-
-    static String nextText(int size) {
-    ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    String word = tlr.ints(97, 123).limit(size).boxed().
-            map(x -> x.toString()).
-            map(x -> (new Character((char) Integer.parseInt(x))).toString()).
-            collect(Collectors.joining());
-
-    return word;
-  }
 
   final String methodNames[] = {
     "get",
   };
 
+  ThreadMXBean tb;
+  ThreadInfo[] ti;
+  ReentrantLock dumpLock;
 
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
-    Object[] receivers1;
+
+    tb = ManagementFactory.getThreadMXBean();
+    dumpLock = new ReentrantLock();
 
     compiledClasses = new byte[numberOfClasses][];
     loadedClasses = new Class[numberOfClasses];
@@ -339,24 +351,25 @@ public class BuildAndCall974 {
 
     for (int i = 0; i < numberOfClasses; i++) {
       classNames[i] = "B" + i;
-      compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
+//            compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
+            compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
+                    B(i, nextText(25).intern()));
     }
 
     for (index = 0; index < compiledClasses.length; index++) {
       Class c = loader1.findClass(classNames[index]);
       loadedClasses[index] = c;
 
-      receivers1 = new Object[instanceCount];
+      List<Object> receivers1 = new LinkedList<>();
       for (int j=0; j< instanceCount; j++) {
-        receivers1[j] = c.newInstance();
+        receivers1.add( c.newInstance());
       }
       instList.put(c, receivers1);
 
       Method[] methods = new Method[methodNames.length];
       IntStream.range(0, methodNames.length).forEach(m -> {
         try {
-          methods[m] = c.getMethod(methodNames[m], java.util.Map.class,
-                  String.class, Integer.class);
+          methods[m] = c.getMethod(methodNames[m], java.util.Map.class, String.class, Integer.class);
         } catch (Exception e) {
           System.out.println("Exception = " + e);
           e.printStackTrace();
@@ -364,59 +377,105 @@ public class BuildAndCall974 {
         }
       });
 
-      table1.put((receivers1[0]).getClass(), methods);
+      methodMap.put(receivers1.get(0).getClass(), methods);
+
+    // Warmup the methods to get compiled
+      IntStream.range(0, methodNames.length).parallel().forEach(m -> {
+        IntStream.range(0, 12000).forEach(x -> {
+                  try {
+                    Object r = instList.get(c).get(0);
+                    Method[] mi = methodMap.get(r.getClass());
+                    mi[m].invoke(r, mapList.get(0), k, 5);
+                  } catch (Exception e) {
+                    System.out.println("Exception = " + e);
+                    e.printStackTrace();
+                    System.exit(-1);
+                  }
+                });
+
+              });
     }
 
     System.gc();
   }
 
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  Class chooseClass() {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    int whichClass = tlr.nextInt(numberOfClasses);
+    return loadedClasses[whichClass];
+  }
+
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  Object chooseInstance(Class c) {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    int whichInst = tlr.nextInt(instanceCount);
+    return instList.get(c).get(whichInst);
+  }
+
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  Method chooseMethod(Class c) {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    int whichM = tlr.nextInt(methodNames.length);
+    return methodMap.get(c)[whichM];
+  }
+
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  Map chooseMap() {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+        int whichMap = tlr.nextInt(mapList.size());
+        return mapList.get(whichMap);
+  }
+
+  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
+  Integer callTheMethod(Method m, Object r, String k, Map map, int recurse) throws Exception {
+    return  (Integer) m.invoke(r, map, k, recurse);
+  }
+  
+  boolean check() {
+    Path path = FileSystems.getDefault().getPath(".", "micros-jdk8-1.0-SNAPSHOT.jar");
+    return Files.exists(path, LinkOption.NOFOLLOW_LINKS);
+  }
+  
+  void dump() {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    if (tlr.nextInt(100) < 15) {
+      if (dumpLock.tryLock()) {
+        ti = tb.dumpAllThreads(true, true);
+      }
+    }
+  }
+
   Integer work(Blackhole bh) throws Exception {
     Integer sum = 0;
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    
+    dump();
 
     // Call a random method of a random class up to the specified range
     for (int index = 0; index < compiledClasses.length; index++) {
-//    for (int index = 0; index < rangeOfClasses; index++) {
-//      IntStream.range(0, 12000).parallel().forEach(x -> {
-      IntStream.range(0, 12000).forEach(x -> {
-        try {
-          int whichClass = tlr.nextInt(rangeOfClasses);
-          int whichM = tlr.nextInt(methodNames.length);
-          int whichInst = tlr.nextInt(instanceCount);
-          Class c = loadedClasses[whichClass];
-          Object r = ((Object[]) instList.get(c))[whichInst];
-//        System.out.println(r + " " + r.getClass().getName());
+      try {
 
-          Method m = table1.get(c)[whichM];
-          assert m != null;
-          int whichMap = tlr.nextInt(mapList.size());
-
-          Integer result = (Integer) m.invoke(r,
-                  mapList.get(whichMap), k, recurse);
-
-          assert result != null && result >= v;
-        } catch (Exception e) {
-          System.out.println("Exception = " + e);
-          e.printStackTrace();
-        }
-      });
-      if (index % 50 == 0) {
-        System.out.println(index);
+        Class c = chooseClass();
+        Object r = chooseInstance(c);
+        Method m = chooseMethod(c);
+        assert m != null;
+        Map map = chooseMap();
+        
+        Integer result = callTheMethod(m, r, k, map, tlr.nextInt(recurse));
+        assert result != null && result >= v;
+        sum += result;
+      } catch (Exception e) {
+        System.out.println("Exception = " + e);
+        e.printStackTrace();
       }
     }
-    return sum;
+    return check() == true ? sum : 0;
   }
 
+
   @Benchmark
-  @Threads(2)
-  @Fork(value = 3, jvmArgsAppend = {"-XX:ReservedCodeCacheSize=1g",
-    "-Xms12g",
-    "-Xmx12g",
-    "-XX:+UnlockDiagnosticVMOptions",
-    "-XX:+PrintCodeCache",
-    "-XX:+PrintMethodFlushingStatistics",
-    "-Xlog:gc=info,pagesize*=debug" })
-  public void doWork2t(Blackhole bh) throws Exception {
+  public void doWork(Blackhole bh) throws Exception {
     work(bh);
   }
 }
