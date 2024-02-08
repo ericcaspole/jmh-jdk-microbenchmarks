@@ -321,7 +321,6 @@ public class StackStress {
             + "           instB = 0;"                
             + "           throw new Exception(\"Test exception: \" + x );"         
             + "         }"
-//            + "         System.out.println ( \" ### get2: depth =  \" + depth);"
             + "         return  get3( --depth);"
             + "       } else {"
             + "         return  instB;"
@@ -334,7 +333,6 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldC" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
             + "         return  get4( --depth);"
             + "       } else {"
             + "         return  instC;"
@@ -348,7 +346,7 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldD" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
+//            + "         System.out.println ( \" ### get4: depth =  \" + depth);"
             + "         return  get5( --depth);"
             + "       } else {"
             + "         return  instD;"
@@ -361,7 +359,7 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldA" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
+//            + "         System.out.println ( \" ### get5: depth =  \" + depth);"
             + "         return  get6( --depth);"
             + "       } else {"
             + "         return  instA;"
@@ -374,7 +372,7 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldB" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
+//            + "         System.out.println ( \" ### get6: depth =  \" + depth);"
             + "         return  get7( --depth);"
             + "       } else {"
             + "         return  instB;"
@@ -387,7 +385,6 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldA" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
             + "         return  get8( --depth);"
             + "       } else {"
             + "         return  instA;"
@@ -400,7 +397,6 @@ public class StackStress {
 //            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldB" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
             + "         return  get9( --depth);"
             + "       } else {"
             + "         return  instB;"
@@ -409,10 +405,8 @@ public class StackStress {
             + " "
             + " "
             + "   public Integer get9( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldC" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
             + "         return  get10( --depth);"
             + "       } else {"
             + "         return  instC;"
@@ -423,10 +417,8 @@ public class StackStress {
             + " "
             + " "
             + "   public Integer get10( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldD" + filler + " );"
-//            + "         System.out.println ( \" ### get3: depth =  \" + depth);"
             + "         return  get11( --depth);"
             + "       } else {"
             + "         return  instD;"
@@ -434,24 +426,19 @@ public class StackStress {
             + "   }"
             + " "
             + " "
-
-              + "   public Integer get11( Integer depth) throws Throwable { "
-              + newLine
+            + "   public Integer get11( Integer depth) throws Throwable { "
+            + newLine
             + "       assert  target != null : this.getClass().getName();"
             + "       assert  targetMethod != null : this.getClass().getName();"
-              + newLine
+            + newLine
             + "       if ( depth > 0 && target != null) {"
-              + newLine
+            + newLine
             + "         instD += ((depth % 2) + intFieldD" + filler + " );"
 //            + "         System.out.println ( this.getClass().getName() + \" - \" + depth);"
-              + newLine
-//            + "         (new Throwable()).printStackTrace();"
-              + newLine
-//            + "         System.out.println ( \" #################### \" );"
-//            + "         System.out.println ( \" ### get4: depth =  \" + depth);"
-              + newLine
+            + newLine
+            + newLine
             + "         return  (Integer) targetMethod.invoke( target, --depth);"
-              + newLine
+            + newLine
             + "       } else {"
             + "         return  instD;"
             + "       }"
