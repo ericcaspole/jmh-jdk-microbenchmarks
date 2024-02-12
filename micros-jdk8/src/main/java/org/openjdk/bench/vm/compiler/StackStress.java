@@ -56,10 +56,10 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 import static org.openjdk.bench.vm.compiler.StringTableStress.nextText;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 15, time = 3)
-@Measurement(iterations = 10, time = 3)
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.SECONDS)
+@Warmup(iterations = 25, time = 3)
+@Measurement(iterations = 25, time = 3)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages",
     "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
      "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
@@ -67,19 +67,20 @@ import static org.openjdk.bench.vm.compiler.StringTableStress.nextText;
     "-Xmx12g", "-Xms12g", "-XX:+AlwaysPreTouch" })
 public class StackStress {
 
-  @Param({  "7000" })
+  @Param({  "10000" })
   public int numberOfClasses;
 
   @Param({"125"})
   public int recurse;
 
-  @Param({"500"})
+  // 6g live of 12g heap for FA
+  @Param({"1800"})
   public int instanceCount;
 
   @Param({"true" /* , "false" */})
   public boolean dumpStacksBean;
 
-  @Param({"true", "false"})
+  @Param({"true" /* , "false" */})
   public boolean doThrows;
 
   @Param({"1100000"})
@@ -462,7 +463,7 @@ public class StackStress {
 
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
-      if (name.equals(classNames[index] /* "B" + index */)) {
+      if (name.equals(classNames[index] )) {
         assert compiledClasses[index] != null;
         return defineClass(name, compiledClasses[index],
                 0,
@@ -489,7 +490,7 @@ public class StackStress {
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
 
-    IntStream.range(0, stringCount).forEach(n -> {
+    IntStream.range(0, stringCount).parallel().forEach(n -> {
       String s = nextText(strLength).intern();
       strings.add(s);
     });
@@ -511,51 +512,62 @@ public class StackStress {
 
     MethodHandles.Lookup publicLookup = MethodHandles.publicLookup();
 
-    for (int i = 0; i < numberOfClasses; i++) {
+//    for (int i = 0; i < numberOfClasses; i++) {
+//      classNames[i] = "B" + i;
+//      compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
+//                    B(i, nextText(25).intern(), doThrows));
+//    }
+    IntStream.range(0, numberOfClasses).parallel().forEach(i -> {
       classNames[i] = "B" + i;
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
                     B(i, nextText(25).intern(), doThrows));
-    }
+    });
 
-    try {
-      for (index = 0; index < compiledClasses.length; index++) {
-        Class c = loader1.findClass(classNames[index]);
-        loadedClasses[index] = c;
+    for (index = 0; index < compiledClasses.length; index++) {
+      Class c = loader1.findClass(classNames[index]);
+      loadedClasses[index] = c;
 
-        // Build the list of objects of this class
-        List<Object> receivers1 = new LinkedList<>();
-        for (int j = 0; j < instanceCount; j++) {
-          receivers1.add(c.newInstance());
-        }
-        instList.put(c, receivers1);
-
-        MethodHandle[] methods = new MethodHandle[methodNames.length];
-        MethodType mt = MethodType.methodType(Integer.class, Integer.class);
-        IntStream.range(0, methodNames.length).forEach(m -> {
-          try {
-            MethodHandle mh = publicLookup.findVirtual(c, methodNames[0], mt);
-            methods[m] = mh;
-          } catch (Exception e) {
-            System.out.println("Exception = " + e);
-            e.printStackTrace();
-            System.exit(-1);
+      // Build the list of objects of this class
+      List<Object> receivers1 = new LinkedList<>();
+//      List<Object> receivers1 = new ArrayList<>();
+//      for (int j = 0; j < instanceCount; j++) {
+      IntStream.range(0, instanceCount).parallel().forEach(j -> {
+        try{
+          Object inst = c.newInstance();
+          synchronized (receivers1) {
+            receivers1.add(c.newInstance());
           }
-        });
+        } catch (Exception e) {
+                    System.out.println("Exception = " + e);
+          e.printStackTrace();
+          System.exit(-1);
 
-        methodMap.put(receivers1.get(0).getClass(), methods);
+        }
+      });
+      instList.put(c, receivers1);
 
-      }
-    } catch (Throwable e) {
-      System.out.println("Exception = " + e);
-      e.printStackTrace();
-      System.exit(-1);
+      MethodHandle[] methods = new MethodHandle[methodNames.length];
+      MethodType mt = MethodType.methodType(Integer.class, Integer.class);
+      IntStream.range(0, methodNames.length).forEach(m -> {
+        try {
+          MethodHandle mh = publicLookup.findVirtual(c, methodNames[0], mt);
+          methods[m] = mh;
+        } catch (Exception e) {
+          System.out.println("Exception = " + e);
+          e.printStackTrace();
+          System.exit(-1);
+        }
+      });
+
+      methodMap.put(receivers1.get(0).getClass(), methods);
+
     }
 
     // Now that all of the objects are created fill in the targets and targetMethods on each object
     MethodType sObj = MethodType.methodType(void.class, Object.class);
     MethodType sMethod = MethodType.methodType(void.class, MethodHandle.class);
 
-    IntStream.range(0, compiledClasses.length).forEach(c -> {
+    IntStream.range(0, compiledClasses.length).parallel().forEach(c -> {
       IntStream.range(0, instanceCount).forEach(x -> {
         ThreadLocalRandom tlr = ThreadLocalRandom.current();
         try {
@@ -592,7 +604,7 @@ public class StackStress {
     System.gc();
 
     // Warmup the methods to get compiled
-    IntStream.range(0, compiledClasses.length).forEach(c -> {
+    IntStream.range(0, compiledClasses.length). parallel(). forEach(c -> {
       IntStream.range(0, methodNames.length).forEach(m -> {
           try {
             Object r = (instList.get(loadedClasses[c])).get(0);
@@ -601,7 +613,7 @@ public class StackStress {
             assert mi != null && mi[m] != null;
             MethodHandle mh = mi[m];
             assert mh != null;
-            IntStream.range(0, 1000). /* parallel(). */ forEach(x -> {
+            IntStream.range(0, 1000).forEach(x -> {
               try {
                 mh.invoke(r,  8);
               } catch (Throwable e) {
