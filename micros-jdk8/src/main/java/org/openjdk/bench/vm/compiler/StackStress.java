@@ -30,6 +30,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 
 import java.util.concurrent.TimeUnit;
@@ -48,33 +50,31 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import org.openjdk.bench.util.InMemoryJavaCompiler;
-import static org.openjdk.bench.vm.compiler.StringTableStress.nextText;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 25, time = 3)
-@Measurement(iterations = 25, time = 3)
-@BenchmarkMode(Mode.AverageTime)
+@Warmup(iterations = 55, time = 3)
+@Measurement(iterations = 30, time = 3)
+@BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages",
-    "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
-     "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
-     "-XX:StartFlightRecording=delay=45s,dumponexit=true",
-    "-Xmx12g", "-Xms12g", "-XX:+AlwaysPreTouch" })
 public class StackStress {
 
   @Param({  "10000" })
   public int numberOfClasses;
 
-  @Param({"125"})
+  @Param({"175"})
   public int recurse;
 
+  @Param({"250"})
+  public int bgThreads;
+
   // 6g live of 12g heap for FA
-  @Param({"1800"})
+  @Param({"1100"})
   public int instanceCount;
 
   @Param({"true" /* , "false" */})
@@ -99,7 +99,7 @@ public class StackStress {
   Map<Object, MethodHandle[]> methodMap = new HashMap<>();
   List<Map> mapList = new ArrayList();
   Map<Class,List<Object>> instList = new HashMap<>();
-  
+
   static String newLine = System.getProperty("line.separator");
 
   static final String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -295,7 +295,7 @@ public class StackStress {
               + newLine
             + "   public Integer get( Integer depth) throws Throwable { "
               + newLine
-            + "       if (depth > 0) {" 
+            + "       if (depth > 0) {"
               + newLine
               + newLine
 //            + "         (new Throwable()).printStackTrace();"
@@ -304,6 +304,7 @@ public class StackStress {
               + newLine
 //            + "         System.out.println ( \" ### get: this = \" + this + \", depth =  \" + depth);"
             + "         return  get2( --depth);"
+              + newLine
               + newLine
             + "       } else {"
               + newLine
@@ -319,10 +320,16 @@ public class StackStress {
             + "         instB += ((depth % 2) + intFieldB" + filler + " + 1 );"
             + "         if ( " + doThrows + " == true && depth > 80 && instB % 509 == 0 ) {"
             + "           int x = instB;"
-            + "           instB = 0;"                
-            + "           throw new Exception(\"Test exception: \" + x );"         
+            + "           instB = 0;"
+              + newLine
+            + "           throw new Exception(\"Test exception: \" +  x  + \" - \" + this.getClass().getName() );"
+              + newLine
             + "         }"
-            + "         return  get3( --depth);"
+//            + "         return  get3( --depth);"
+              + newLine
+              // Do less recursion in the same class to access more this pointers etc
+            + "         return  get11( --depth);"
+              + newLine
             + "       } else {"
             + "         return  instB;"
             + "       }"
@@ -335,6 +342,9 @@ public class StackStress {
             + "       if (depth > 0 ) {"
             + "         instC += ((depth % 2) + intFieldC" + filler + " );"
             + "         return  get4( --depth);"
+
+//              // Do less recursion in the same class to access more this pointers etc
+//            + "         return  get11( --depth);"
             + "       } else {"
             + "         return  instC;"
             + "       }"
@@ -441,6 +451,10 @@ public class StackStress {
             + "         return  (Integer) targetMethod.invoke( target, --depth);"
             + newLine
             + "       } else {"
+//            + "         Thread.sleep(12);"
+            + "         Thread.yield();"
+            + "         Thread.yield();"
+            + newLine
             + "         return  instD;"
             + "       }"
             + "   }"
@@ -485,18 +499,48 @@ public class StackStress {
 
   ThreadMXBean tb;
   ThreadInfo[] ti;
-  ReentrantLock dumpLock;
+  ReentrantLock dumpLock, checkLock;
+
+  ExecutorService tpe = null;
+  volatile boolean doBackground = true;
+
+  class BackgroundWorker implements Runnable {
+
+    public void run() {
+      while (doBackground == true) {
+        try {
+
+          // Concurrently search the string table
+          strings.add( nextText(strLength).intern() );
+
+          executeOne();
+        } catch (Throwable t) {
+          // some throws happen by design, carry on
+//          System.out.println(Thread.currentThread().getName() + " - Exception = " + t);
+        }
+      }
+    }
+
+  }
+
+  @TearDown(Level.Trial)
+  public void shutDown() throws Exception {
+    doBackground = false;
+    tpe.awaitTermination(9999, TimeUnit.SECONDS);
+  }
 
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
 
-    IntStream.range(0, stringCount).parallel().forEach(n -> {
+    // *** Fill the table to 1/4, then do more in the background threads so the table is busy ***
+    IntStream.range(0, stringCount/4 ).parallel().forEach(n -> {
       String s = nextText(strLength).intern();
       strings.add(s);
     });
 
     tb = ManagementFactory.getThreadMXBean();
     dumpLock = new ReentrantLock();
+    checkLock = new ReentrantLock();
 
     compiledClasses = new byte[numberOfClasses][];
     loadedClasses = new Class[numberOfClasses];
@@ -522,6 +566,8 @@ public class StackStress {
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
                     B(i, nextText(25).intern(), doThrows));
     });
+
+    System.out.println("Classes compiled.");
 
     for (index = 0; index < compiledClasses.length; index++) {
       Class c = loader1.findClass(classNames[index]);
@@ -563,6 +609,8 @@ public class StackStress {
 
     }
 
+    System.out.println("Classes and Objects created.");
+
     // Now that all of the objects are created fill in the targets and targetMethods on each object
     MethodType sObj = MethodType.methodType(void.class, Object.class);
     MethodType sMethod = MethodType.methodType(void.class, MethodHandle.class);
@@ -577,9 +625,11 @@ public class StackStress {
 
           // For each instance of class C
           //  choose a random class
-          Class rClass = loadedClasses[tlr.nextInt(loadedClasses.length)];
+//          Class rClass = loadedClasses[tlr.nextInt(loadedClasses.length)];
+          Class rClass = chooseClass();
           //  choose a random instance of that class
-          Object rObj = instList.get(rClass).get(tlr.nextInt(instanceCount));
+//          Object rObj = instList.get(rClass).get(tlr.nextInt(instanceCount));
+          Object rObj = chooseInstance(rClass);
           //  set the target as that instance
 
           MethodHandle mh1 = publicLookup.findVirtual(currClass, "setTarget", sObj);
@@ -601,6 +651,7 @@ public class StackStress {
       });
     });
 
+    System.out.println("Target Objects updated.");
     System.gc();
 
     // Warmup the methods to get compiled
@@ -613,9 +664,9 @@ public class StackStress {
             assert mi != null && mi[m] != null;
             MethodHandle mh = mi[m];
             assert mh != null;
-            IntStream.range(0, 1000).forEach(x -> {
+            IntStream.range(0, 2000).forEach(x -> {
               try {
-                mh.invoke(r,  8);
+                mh.invoke(r,  6);
               } catch (Throwable e) {
                 System.out.println("Exception = " + e);
                 e.printStackTrace();
@@ -630,7 +681,25 @@ public class StackStress {
       });
     });
 
+    System.out.println("Warmup completed.");
     System.gc();
+
+    doBackground = true;
+//    try {
+      tpe = Executors.newFixedThreadPool(bgThreads);
+      for (int i = 0; i < bgThreads; i++) {
+        tpe.execute(new BackgroundWorker());
+      }
+      // Shutdown input on the thread queue and wait for the jobs to complete
+      tpe.shutdown();
+
+//    } catch (Throwable e) {
+//      System.out.println("Exception = " + e);
+//      e.printStackTrace();
+//      System.exit(-1);
+//    }
+    System.out.println("Background threads created.");
+
   }
 
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
@@ -662,24 +731,25 @@ public class StackStress {
   }
 
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-  Integer callTheMethod(MethodHandle m, Object r, String k, Map map, int recurse) /* throws Throwable */ {
-    try {
+  Integer callTheMethod(MethodHandle m, Object r, /* String k, */ int recurse)  throws Throwable {
     return  (Integer) m.invoke(r,  recurse);
-    } catch (Throwable t) {
-//      System.out.println("### callTheMethod threw : " + t +", m = " + m + ", r = " + r);
-    } 
-    return 0;
   }
 
   boolean check() {
-    Path path = FileSystems.getDefault().getPath(".", "micros-jdk8-1.0-SNAPSHOT.jar");
-    return Files.exists(path, LinkOption.NOFOLLOW_LINKS);
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    if (tlr.nextInt(100) < 15) {
+      if (checkLock.tryLock()) {
+        Path path = FileSystems.getDefault().getPath(".", "micros-jdk8-1.0-SNAPSHOT.jar");
+        return Files.exists(path, LinkOption.NOFOLLOW_LINKS);
+      }
+    }
+    return false;
   }
 
   void dump() {
     if (dumpStacksBean == true) {
       ThreadLocalRandom tlr = ThreadLocalRandom.current();
-      if (tlr.nextInt(100) < 15) {
+      if (tlr.nextInt(100) < 1) {
         if (dumpLock.tryLock()) {
           ti = tb.dumpAllThreads(true, true);
         }
@@ -687,35 +757,66 @@ public class StackStress {
     }
   }
 
+  int executeOne() throws Throwable {
+    ThreadLocalRandom tlr = ThreadLocalRandom.current();
+    Class c = chooseClass();
+    Object r = chooseInstance(c);
+    MethodHandle m = chooseMethod(c);
+    assert m != null;
+    return callTheMethod(m, r, tlr.nextInt(recurse));
+  }
+
+
   Integer work(Blackhole bh) throws Exception {
     Integer sum = 0;
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
 
-    dump();
-
     // Call a random method of a random class up to the specified range
-    for (int index = 0; index < compiledClasses.length; index++) {
+    int work = 1; // compiledClasses.length / 100;
+//    for (int index = 0; index < compiledClasses.length; index++) {
+    for (int index = 0; index < work; index++) {
+//    IntStream.range(0, compiledClasses.length).parallel().forEach(x -> {
+//    IntStream.range(0, work).parallel().forEach(x -> {
       try {
 
         Class c = chooseClass();
+
+        check();
+
         Object r = chooseInstance(c);
         MethodHandle m = chooseMethod(c);
         assert m != null;
-        Map map = chooseMap();
 
-        Integer result = callTheMethod(m, r, k, map, tlr.nextInt(recurse));
-        sum += result;
+        Integer result = callTheMethod(m, r,  tlr.nextInt(recurse));
+//        sum += result;
+        dump();
+
       } catch (Throwable e) {
-        System.out.println("Exception = " + e);
-        e.printStackTrace();
+//        System.out.println(Thread.currentThread().getName() + " - Exception = " + e);
+//        e.printStackTrace();
       }
     }
+//    });
     return check() == true ? sum : 0;
   }
 
+  @Benchmark
+ @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+    "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
+    "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
+    "-XX:StartFlightRecording=delay=60s,dumponexit=true",
+    "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
+ public void doWorkDefault(Blackhole bh) throws Exception {
+    work(bh);
+  }
 
   @Benchmark
-  public void doWork(Blackhole bh) throws Exception {
+ @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+    "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
+    "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
+    "-XX:StartFlightRecording=delay=60s,dumponexit=true,settings=string-less.jfc",
+    "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
+ public void doWorkLessJfr(Blackhole bh) throws Exception {
     work(bh);
   }
 }
