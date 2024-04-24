@@ -30,6 +30,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -52,25 +53,35 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+import org.openjdk.jmh.infra.ThreadParams;
 
 import org.openjdk.bench.util.InMemoryJavaCompiler;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 55, time = 3)
-@Measurement(iterations = 30, time = 3)
+//@Warmup(iterations = 18, time = 20)  // Need plenty of warmup
+//@Measurement(iterations = 15, time = 8)
+@Warmup(iterations = 7, time = 20)  // Need plenty of warmup
+@Measurement(iterations = 12, time = 8)
 @BenchmarkMode(Mode.SampleTime)
+@Threads(Threads.HALF_MAX)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StackStress {
 
+  // 10000 is good accdg to Scott
   @Param({  "10000" })
   public int numberOfClasses;
 
   @Param({"175"})
   public int recurse;
 
-  @Param({"250"})
+  @Param({/* "true", */ "false"})
+  public boolean randomRecurse;
+
+  // 350 is close to an actual FA run log tread count
+  @Param({"350"})
   public int bgThreads;
 
   // 6g live of 12g heap for FA
@@ -90,15 +101,15 @@ public class StackStress {
   private int strLength;
 
   byte[][] compiledClasses;
-  Class[] loadedClasses;
+  Map<String,Class>   loadedClasses;
   String[] classNames;
 
   List<String>  strings = new ArrayList<>();
 
   int index = 0;
-  Map<Object, MethodHandle[]> methodMap = new HashMap<>();
+  Map<Class, MethodHandle[]> methodMap = new ConcurrentHashMap<>();
   List<Map> mapList = new ArrayList();
-  Map<Class,List<Object>> instList = new HashMap<>();
+  Map<Class, Map<String,Object>>   instList = new ConcurrentHashMap<>();
 
   static String newLine = System.getProperty("line.separator");
 
@@ -124,19 +135,6 @@ public class StackStress {
             + "public class B" + count + " {"
             + " "
             + " "
-            + "    volatile Object target = null;"
-            + " "
-            + "    volatile MethodHandle targetMethod = null;"
-            + " "
-            + " "
-            + "   public void setTarget( Object t ) {"
-            + "     target = t;"
-            + "   }"
-            + " "
-            + "   public void setMethod( MethodHandle m) {"
-            + "     targetMethod = m;"
-            + "   }"
-            + " "
               + newLine
             + " "
             + "   public String toString() {"
@@ -144,6 +142,16 @@ public class StackStress {
             + "   }"
             + " "
               + newLine
+            + " "
+              + newLine
+              + "   static int myId" +  " = " + count + ";"
+              + newLine
+            + " "
+            + "   public synchronized int getMyId() {"
+              + "   return myId;"
+            + "   }"
+            + " "
+
               + "   static int intFieldA" + filler + " = 0;"
                 + "    static int staticPadAA" + filler + " = 0;"
                 + "    static int staticPadAB" + filler + " = 0;"
@@ -213,6 +221,8 @@ public class StackStress {
 
             + "   static int intFieldD" + filler + " = 0;"
             + " "
+            + " "
+            + "    volatile Object target = null;"
             + " "
             + " "
 //            + "   Integer instA = new Integer( " + count + ");"
@@ -291,6 +301,17 @@ public class StackStress {
                 + "    volatile Integer instD = 0;"
             + " "
             + " "
+            + "    volatile MethodHandle targetMethod = null;"
+            + " "
+            + " "
+            + "   public void setTarget( Object t ) {"
+            + "     target = t;"
+            + "   }"
+            + " "
+            + "   public void setMethod( MethodHandle m) {"
+            + "     targetMethod = m;"
+            + "   }"
+            + " "
 
               + newLine
             + "   public Integer get( Integer depth) throws Throwable { "
@@ -303,139 +324,148 @@ public class StackStress {
             + "         instA += ((depth % 2) + intFieldA" + filler + " );"
               + newLine
 //            + "         System.out.println ( \" ### get: this = \" + this + \", depth =  \" + depth);"
-            + "         return  get2( --depth);"
-              + newLine
-              + newLine
-            + "       } else {"
-              + newLine
-            + "         return  instA;"
-            + "       }"
-            + "   }"
+
+            + "         if ( " + doThrows + " == true && depth > 80 && instA % 587 == 0 ) {"
             + " "
+            + "             synchronized(this) {"
             + " "
-            + "   public Integer get2( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-//            + "         instB += ((depth % 2) + intFieldB" + filler + " );"
-            + "         instB += ((depth % 2) + intFieldB" + filler + " + 1 );"
-            + "         if ( " + doThrows + " == true && depth > 80 && instB % 509 == 0 ) {"
-            + "           int x = instB;"
-            + "           instB = 0;"
+            + "                 int x = getMyId();"
+            + "                 instA = 0;"
               + newLine
-            + "           throw new Exception(\"Test exception: \" +  x  + \" - \" + this.getClass().getName() );"
+            + "                 throw new Exception(\"Test exception: \" +  x  + \" - \" + this.getClass().getName() );"
+            + "             }"
               + newLine
             + "         }"
-//            + "         return  get3( --depth);"
-              + newLine
+
+//            + "         return  get2( --depth);"
               // Do less recursion in the same class to access more this pointers etc
             + "         return  get11( --depth);"
               + newLine
+              + newLine
             + "       } else {"
-            + "         return  instB;"
+              + newLine
+            + "         return  instA + getMyId();"
             + "       }"
             + "   }"
             + " "
             + " "
-            + " "
-            + "   public Integer get3( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldC" + filler + " );"
-            + "         return  get4( --depth);"
-
+//            + "   public Integer get2( Integer depth) throws Throwable { "
+////            + "         System.out.println ( m + \" / \" + k);"
+//            + "       if (depth > 0 ) {"
+////            + "         instB += ((depth % 2) + intFieldB" + filler + " );"
+//            + "         instB += (getMyId() + intFieldB" + filler + " + 1 );"
+//            + "         if ( " + doThrows + " == true && depth > 80 && instB % 509 == 0 ) {"
+//            + "           int x = instB;"
+//            + "           instB = 0;"
+//              + newLine
+//            + "           throw new Exception(\"Test exception: \" +  x  + \" - \" + this.getClass().getName() );"
+//              + newLine
+//            + "         }"
+////            + "         return  get3( --depth);"
+//              + newLine
 //              // Do less recursion in the same class to access more this pointers etc
 //            + "         return  get11( --depth);"
-            + "       } else {"
-            + "         return  instC;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + " "
-            + "   public Integer get4( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldD" + filler + " );"
-//            + "         System.out.println ( \" ### get4: depth =  \" + depth);"
-            + "         return  get5( --depth);"
-            + "       } else {"
-            + "         return  instD;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + "   public Integer get5( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldA" + filler + " );"
-//            + "         System.out.println ( \" ### get5: depth =  \" + depth);"
-            + "         return  get6( --depth);"
-            + "       } else {"
-            + "         return  instA;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + "   public Integer get6( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldB" + filler + " );"
-//            + "         System.out.println ( \" ### get6: depth =  \" + depth);"
-            + "         return  get7( --depth);"
-            + "       } else {"
-            + "         return  instB;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + "   public Integer get7( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldA" + filler + " );"
-            + "         return  get8( --depth);"
-            + "       } else {"
-            + "         return  instA;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + "   public Integer get8( Integer depth) throws Throwable { "
-//            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldB" + filler + " );"
-            + "         return  get9( --depth);"
-            + "       } else {"
-            + "         return  instB;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + "   public Integer get9( Integer depth) throws Throwable { "
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldC" + filler + " );"
-            + "         return  get10( --depth);"
-            + "       } else {"
-            + "         return  instC;"
-            + "       }"
-            + "   }"
-            + " "
-            + " "
-            + " "
-            + " "
-            + "   public Integer get10( Integer depth) throws Throwable { "
-            + "       if (depth > 0 ) {"
-            + "         instC += ((depth % 2) + intFieldD" + filler + " );"
-            + "         return  get11( --depth);"
-            + "       } else {"
-            + "         return  instD;"
-            + "       }"
-            + "   }"
-            + " "
+//              + newLine
+//            + "       } else {"
+//            + "         return  instB;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get3( Integer depth) throws Throwable { "
+////            + "         System.out.println ( m + \" / \" + k);"
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldC" + filler + " );"
+//            + "         return  get4( --depth);"
+//
+////              // Do less recursion in the same class to access more this pointers etc
+////            + "         return  get11( --depth);"
+//            + "       } else {"
+//            + "         return  instC;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get4( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldD" + filler + " );"
+////            + "         System.out.println ( \" ### get4: depth =  \" + depth);"
+//            + "         return  get5( --depth);"
+//            + "       } else {"
+//            + "         return  instD;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get5( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldA" + filler + " );"
+////            + "         System.out.println ( \" ### get5: depth =  \" + depth);"
+//            + "         return  get6( --depth);"
+//            + "       } else {"
+//            + "         return  instA;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get6( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldB" + filler + " );"
+//            + "         return  get7( --depth);"
+//            + "       } else {"
+//            + "         return  instB;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get7( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldA" + filler + " );"
+//            + "         return  get8( --depth);"
+//            + "       } else {"
+//            + "         return  instA;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get8( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldB" + filler + " );"
+//            + "         return  get9( --depth);"
+//            + "       } else {"
+//            + "         return  instB;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + "   public Integer get9( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldC" + filler + " );"
+//            + "         return  get10( --depth);"
+//            + "       } else {"
+//            + "         return  instC;"
+//            + "       }"
+//            + "   }"
+//            + " "
+//            + " "
+//            + " "
+//            + " "
+//            + "   public Integer get10( Integer depth) throws Throwable { "
+//            + "       if (depth > 0 ) {"
+//            + "         instC += ((depth % 2) + intFieldD" + filler + " );"
+//            + "         return  get11( --depth);"
+//            + "       } else {"
+//            + "         return  instD;"
+//            + "       }"
+//            + "   }"
+//            + " "
             + " "
             + "   public Integer get11( Integer depth) throws Throwable { "
             + newLine
@@ -444,7 +474,9 @@ public class StackStress {
             + newLine
             + "       if ( depth > 0 && target != null) {"
             + newLine
-            + "         instD += ((depth % 2) + intFieldD" + filler + " );"
+            + " "
+            + " "
+            + "         instD += (getMyId() + intFieldD" + filler + " );"
 //            + "         System.out.println ( this.getClass().getName() + \" - \" + depth);"
             + newLine
             + newLine
@@ -452,10 +484,15 @@ public class StackStress {
             + newLine
             + "       } else {"
 //            + "         Thread.sleep(12);"
-            + "         Thread.yield();"
-            + "         Thread.yield();"
+            + " "
+            + " "
+
+              // Yield here so more likely to scan the deepest stacks - is that dumb?
+
+//            + "         Thread.yield();"
+//            + "         Thread.yield();"
             + newLine
-            + "         return  instD;"
+            + "         return  instD + getMyId();"
             + "       }"
             + "   }"
             + " "
@@ -498,7 +535,9 @@ public class StackStress {
   };
 
   ThreadMXBean tb;
+  List<GarbageCollectorMXBean>  gcBeans;
   ThreadInfo[] ti;
+  long[] possiblyDeadlockedIds;
   ReentrantLock dumpLock, checkLock;
 
   ExecutorService tpe = null;
@@ -506,14 +545,27 @@ public class StackStress {
 
   class BackgroundWorker implements Runnable {
 
+    boolean yieldOrSpin = false;
+    String myString;
+
     public void run() {
       while (doBackground == true) {
         try {
 
           // Concurrently search the string table
-          strings.add( nextText(strLength).intern() );
+          ThreadLocalRandom tlr = ThreadLocalRandom.current();
+          int whichStr = tlr.nextInt(strings.size());
+          myString = strings.get(whichStr).intern();
 
           executeOne();
+
+          if  (yieldOrSpin && (myString != null)) {
+            Thread.sleep(100);
+          } else {
+            Blackhole.consumeCPU(1000);
+          }
+          yieldOrSpin = !yieldOrSpin;
+
         } catch (Throwable t) {
           // some throws happen by design, carry on
 //          System.out.println(Thread.currentThread().getName() + " - Exception = " + t);
@@ -532,18 +584,28 @@ public class StackStress {
   @Setup(Level.Trial)
   public void setupClasses() throws Exception {
 
+      System.getProperties().list(System.out);
+
     // *** Fill the table to 1/4, then do more in the background threads so the table is busy ***
     IntStream.range(0, stringCount/4 ).parallel().forEach(n -> {
       String s = nextText(strLength).intern();
-      strings.add(s);
+      synchronized(strings) {
+        strings.add(s);
+      }
     });
 
     tb = ManagementFactory.getThreadMXBean();
+    gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
+    gcBeans.stream().forEach(b -> {
+      System.out.println("### GC Bean: " + b);
+    });
     dumpLock = new ReentrantLock();
     checkLock = new ReentrantLock();
 
     compiledClasses = new byte[numberOfClasses][];
-    loadedClasses = new Class[numberOfClasses];
+//    loadedClasses = new Class[numberOfClasses];
+
+    loadedClasses = new ConcurrentHashMap<>();
     classNames = new String[numberOfClasses];
 
     mapList.add( new HashMap());
@@ -556,11 +618,6 @@ public class StackStress {
 
     MethodHandles.Lookup publicLookup = MethodHandles.publicLookup();
 
-//    for (int i = 0; i < numberOfClasses; i++) {
-//      classNames[i] = "B" + i;
-//      compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
-//                    B(i, nextText(25).intern(), doThrows));
-//    }
     IntStream.range(0, numberOfClasses).parallel().forEach(i -> {
       classNames[i] = "B" + i;
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
@@ -571,23 +628,25 @@ public class StackStress {
 
     for (index = 0; index < compiledClasses.length; index++) {
       Class c = loader1.findClass(classNames[index]);
-      loadedClasses[index] = c;
+      loadedClasses.put(Integer.toString(index), c);
+    }
+
+    IntStream.range(0, numberOfClasses).parallel().forEach(cc -> {
 
       // Build the list of objects of this class
-      List<Object> receivers1 = new LinkedList<>();
-//      List<Object> receivers1 = new ArrayList<>();
-//      for (int j = 0; j < instanceCount; j++) {
-      IntStream.range(0, instanceCount).parallel().forEach(j -> {
+      ConcurrentHashMap<String,Object> receivers1 = new ConcurrentHashMap<>();
+
+      Class c = loadedClasses.get(Integer.toString(cc));
+      assert c != null : "No class? " + c;
+
+      IntStream.range(0, instanceCount)/* .parallel() */ .forEach(j -> {
         try{
           Object inst = c.newInstance();
-          synchronized (receivers1) {
-            receivers1.add(c.newInstance());
-          }
+          receivers1.put(Integer.toString(j), inst);
         } catch (Exception e) {
-                    System.out.println("Exception = " + e);
+          System.out.println("Exception = " + e);
           e.printStackTrace();
           System.exit(-1);
-
         }
       });
       instList.put(c, receivers1);
@@ -605,9 +664,10 @@ public class StackStress {
         }
       });
 
-      methodMap.put(receivers1.get(0).getClass(), methods);
 
-    }
+      methodMap.put(c, methods);
+
+    });
 
     System.out.println("Classes and Objects created.");
 
@@ -620,16 +680,19 @@ public class StackStress {
         ThreadLocalRandom tlr = ThreadLocalRandom.current();
         try {
           // Get the instance we are going to set
-          Class currClass = loadedClasses[c];
-          Object currObj = instList.get(currClass).get(x);
+//          Class currClass = loadedClasses[c];
+          Class currClass = loadedClasses.get(Integer.toString(c));
+          assert currClass != null : "No class? " + c;
+          Object currObj = instList.get(currClass).get(Integer.toString(x));
+          assert currObj != null : "No instance of " + currClass + " at " + x;
 
           // For each instance of class C
           //  choose a random class
-//          Class rClass = loadedClasses[tlr.nextInt(loadedClasses.length)];
           Class rClass = chooseClass();
+          assert rClass != null;
           //  choose a random instance of that class
-//          Object rObj = instList.get(rClass).get(tlr.nextInt(instanceCount));
           Object rObj = chooseInstance(rClass);
+          assert rObj != null;
           //  set the target as that instance
 
           MethodHandle mh1 = publicLookup.findVirtual(currClass, "setTarget", sObj);
@@ -638,8 +701,9 @@ public class StackStress {
           // Fill in the target and MH to call it
           assert currObj != null && rObj != null;
           mh1.invoke(currObj, rObj);
-
-          MethodHandle tm = methodMap.get(rClass)[0];
+          MethodHandle[] methodsArray = methodMap.get(rClass);
+          assert methodsArray != null : "No methods for " + rClass;
+          MethodHandle tm = methodsArray[0];
           assert tm != null && currObj != null;
           mh2.invoke(currObj, tm);
         } catch (Throwable e) {
@@ -652,25 +716,37 @@ public class StackStress {
     });
 
     System.out.println("Target Objects updated.");
-    System.gc();
+//    System.gc();
+
+    doBackground = true;
+
+    tpe = Executors.newFixedThreadPool(bgThreads);
+      for (int i = 0; i < bgThreads; i++) {
+        tpe.execute(new BackgroundWorker());
+      }
+      // Shutdown input on the thread queue and wait for the jobs to complete
+      tpe.shutdown();
+
+    System.out.println("Background threads created.");
+
 
     // Warmup the methods to get compiled
-    IntStream.range(0, compiledClasses.length). parallel(). forEach(c -> {
+    IntStream.range(0, compiledClasses.length). /* parallel(). */ forEach(c -> {
       IntStream.range(0, methodNames.length).forEach(m -> {
           try {
-            Object r = (instList.get(loadedClasses[c])).get(0);
+            Class cc = loadedClasses.get(Integer.toString(c));
+            assert cc != null;
+            Object r = chooseInstance(cc);
             assert r != null;
-            MethodHandle[] mi = methodMap.get(r.getClass());
-            assert mi != null && mi[m] != null;
-            MethodHandle mh = mi[m];
+            MethodHandle mh = chooseMethod(cc);
             assert mh != null;
-            IntStream.range(0, 2000).forEach(x -> {
+            IntStream.range(0, 1000).parallel().forEach(x -> {
               try {
-                mh.invoke(r,  6);
+                mh.invoke(r,  Integer.max(recurse/12, 5) );
               } catch (Throwable e) {
-                System.out.println("Exception = " + e);
-                e.printStackTrace();
-                System.exit(-1);
+//                System.out.println("Exception = " + e);
+//                e.printStackTrace();
+//                System.exit(-1);
               }
             });
           } catch (Throwable e) {
@@ -682,23 +758,8 @@ public class StackStress {
     });
 
     System.out.println("Warmup completed.");
+
     System.gc();
-
-    doBackground = true;
-//    try {
-      tpe = Executors.newFixedThreadPool(bgThreads);
-      for (int i = 0; i < bgThreads; i++) {
-        tpe.execute(new BackgroundWorker());
-      }
-      // Shutdown input on the thread queue and wait for the jobs to complete
-      tpe.shutdown();
-
-//    } catch (Throwable e) {
-//      System.out.println("Exception = " + e);
-//      e.printStackTrace();
-//      System.exit(-1);
-//    }
-    System.out.println("Background threads created.");
 
   }
 
@@ -706,14 +767,18 @@ public class StackStress {
   Class chooseClass() {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
     int whichClass = tlr.nextInt(numberOfClasses);
-    return loadedClasses[whichClass];
+    return loadedClasses.get(Integer.toString(whichClass).intern());
+
   }
 
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
   Object chooseInstance(Class c) {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
     int whichInst = tlr.nextInt(instanceCount);
-    return instList.get(c).get(whichInst);
+    Map<String,Object> iMap = instList.get(c);
+    String iKey = Integer.toString(whichInst).intern();
+    assert iMap != null : "No insts for " + c + " / " + iKey;
+    return iMap.get(iKey);
   }
 
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
@@ -724,15 +789,9 @@ public class StackStress {
   }
 
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-  Map chooseMap() {
+  Integer callTheMethod(MethodHandle m, Object r)  throws Throwable {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-        int whichMap = tlr.nextInt(mapList.size());
-        return mapList.get(whichMap);
-  }
-
-  @CompilerControl(CompilerControl.Mode.DONT_INLINE)
-  Integer callTheMethod(MethodHandle m, Object r, /* String k, */ int recurse)  throws Throwable {
-    return  (Integer) m.invoke(r,  recurse);
+    return  (Integer) m.invoke(r, randomRecurse == true ? tlr.nextInt(recurse/2) +  recurse/2 : recurse );
   }
 
   boolean check() {
@@ -752,6 +811,9 @@ public class StackStress {
       if (tlr.nextInt(100) < 1) {
         if (dumpLock.tryLock()) {
           ti = tb.dumpAllThreads(true, true);
+          
+          possiblyDeadlockedIds = tb.findDeadlockedThreads();
+          assert  possiblyDeadlockedIds.length == 0 : "We dont have deadlocks! " + possiblyDeadlockedIds.length;
         }
       }
     }
@@ -763,60 +825,59 @@ public class StackStress {
     Object r = chooseInstance(c);
     MethodHandle m = chooseMethod(c);
     assert m != null;
-    return callTheMethod(m, r, tlr.nextInt(recurse));
+    return callTheMethod(m, r);
   }
 
 
-  Integer work(Blackhole bh) throws Exception {
+  Integer work(Blackhole bh, int id) throws Exception {
     Integer sum = 0;
-    ThreadLocalRandom tlr = ThreadLocalRandom.current();
 
     // Call a random method of a random class up to the specified range
-    int work = 1; // compiledClasses.length / 100;
+    int work = 1;
 //    for (int index = 0; index < compiledClasses.length; index++) {
     for (int index = 0; index < work; index++) {
-//    IntStream.range(0, compiledClasses.length).parallel().forEach(x -> {
-//    IntStream.range(0, work).parallel().forEach(x -> {
       try {
 
-        Class c = chooseClass();
-
-        check();
-
-        Object r = chooseInstance(c);
-        MethodHandle m = chooseMethod(c);
-        assert m != null;
-
-        Integer result = callTheMethod(m, r,  tlr.nextInt(recurse));
-//        sum += result;
-        dump();
+        sum += executeOne();
+        if (id == 0) {
+          dump();
+        }
 
       } catch (Throwable e) {
 //        System.out.println(Thread.currentThread().getName() + " - Exception = " + e);
 //        e.printStackTrace();
       }
     }
-//    });
     return check() == true ? sum : 0;
   }
 
   @Benchmark
- @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+ @Fork(value = 1, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+// @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages",
     "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
     "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
-    "-XX:StartFlightRecording=delay=60s,dumponexit=true",
+    "-XX:StartFlightRecording=delay=90s,dumponexit=true",
     "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
- public void doWorkDefault(Blackhole bh) throws Exception {
-    work(bh);
+ public void doWorkDefault(Blackhole bh, ThreadParams thdp) throws Exception {
+    work(bh, thdp.getThreadIndex());
   }
 
   @Benchmark
  @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
     "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
     "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
-    "-XX:StartFlightRecording=delay=60s,dumponexit=true,settings=string-less.jfc",
+    "-XX:StartFlightRecording=delay=90s,dumponexit=true,settings=string-less.jfc",
     "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
- public void doWorkLessJfr(Blackhole bh) throws Exception {
-    work(bh);
+ public void doWorkLessJfr(Blackhole bh, ThreadParams thdp) throws Exception {
+    work(bh, thdp.getThreadIndex());
+  }
+
+  @Benchmark
+ @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+    "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
+    "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
+    "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
+ public void doWorkNoJfr(Blackhole bh, ThreadParams thdp) throws Exception {
+    work(bh, thdp.getThreadIndex());
   }
 }
