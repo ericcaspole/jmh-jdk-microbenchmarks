@@ -26,8 +26,6 @@ package org.openjdk.bench.vm.lang;
 
 import java.lang.invoke.*;
 import java.lang.management.*;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,22 +67,22 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StackStress {
 
-    // 10000 is good accdg to Scott
+    // 10000 seems to be a good number for high code cache occupancy
     @Param({"10000"})
     public int numberOfClasses;
 
-    // Deep stacks like an observed profile
+    // Deep stacks are common in complex enterprise apps
     @Param({"175"})
     public int recurse;
 
     @Param({"10"})
     public int stringOpPct;
 
-    // 350 is close to an actual run log thread count
+    // 350 seems to represent what is seen in complex enterprise apps
     @Param({"350"})
     public int bgThreads;
 
-    // Around 6g live of 12g heap
+    // 700 instances results in about 6 BG of live data
     @Param({"700"})
     public int instances;
 
@@ -653,7 +651,6 @@ public class StackStress {
 
         IntStream.range(0, compiledClasses.length).parallel().forEach(c -> {
             IntStream.range(0, instances).forEach(x -> {
-                ThreadLocalRandom tlr = ThreadLocalRandom.current();
                 try {
                     // Get the instance we are going to set
                     Class currClass = loadedClasses.get(Integer.toString(c));
@@ -817,7 +814,6 @@ public class StackStress {
     }
 
     int executeOne() throws Throwable {
-        ThreadLocalRandom tlr = ThreadLocalRandom.current();
         Class c = chooseClass();
         Object r = chooseInstance(c);
         MethodHandle m = chooseMethod(c);
