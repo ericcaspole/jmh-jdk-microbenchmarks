@@ -76,6 +76,22 @@
             </modules>
         </profile>
         <profile>
+            <id>jdk17</id>
+            <activation>
+                <jdk>[17,)</jdk>
+            </activation>
+            <modules>
+                <module>micros-uber</module>
+                <module>micros-jdk8</module>
+                <module>micros-jdk9</module>
+                <module>micros-jdk11</module>
+                <module>micros-jdk17</module>
+                <module>micros-util</module>
+                <module>redefineagent</module>
+                <module>micros-javac</module>
+            </modules>
+        </profile>
+        <profile>
             <id>maven-3</id>
             <activation>
                 <file>
