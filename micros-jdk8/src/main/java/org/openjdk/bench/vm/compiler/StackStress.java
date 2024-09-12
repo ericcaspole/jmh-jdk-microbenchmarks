@@ -63,9 +63,11 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @State(Scope.Benchmark)
 //@Warmup(iterations = 18, time = 20)  // Need plenty of warmup
 //@Measurement(iterations = 15, time = 8)
-@Warmup(iterations = 7, time = 20)  // Need plenty of warmup
-@Measurement(iterations = 12, time = 8)
-@BenchmarkMode(Mode.SampleTime)
+@Warmup(iterations = 10, time = 20)  // Need plenty of warmup
+@Measurement(iterations = 25, time = 8)
+//@BenchmarkMode(Mode.SampleTime)
+//@BenchmarkMode(Mode.Throughput)
+@BenchmarkMode(Mode.AverageTime)
 @Threads(Threads.HALF_MAX)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StackStress {
@@ -80,7 +82,7 @@ public class StackStress {
   @Param({/* "true", */ "false"})
   public boolean randomRecurse;
 
-  // 350 is close to an actual FA run log tread count
+  // 350 is close to an actual app run log thread count
   @Param({"350"})
   public int bgThreads;
 
@@ -873,10 +875,11 @@ public class StackStress {
   }
 
   @Benchmark
- @Fork(value = 2, jvmArgsAppend = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
+ @Fork(value = 5, jvmArgs = { "-XX:+UseLargePages", "-XX:+UseParallelGC",
     "-XX:ReservedCodeCacheSize=1g", "-XX:InitialCodeCacheSize=1g",
     "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintCodeCache", "-XX:-SegmentedCodeCache",
     "-Xmx12g", "-Xms12g", "-XX:NewSize=3g", "-XX:+AlwaysPreTouch" })
+ @OutputTimeUnit(TimeUnit.MICROSECONDS)
  public void doWorkNoJfr(Blackhole bh, ThreadParams thdp) throws Exception {
     work(bh, thdp.getThreadIndex());
   }
