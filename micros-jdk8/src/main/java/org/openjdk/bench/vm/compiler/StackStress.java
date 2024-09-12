@@ -72,7 +72,7 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class StackStress {
 
-  // 10000 is good accdg to Scott
+  // 10000 is close to an actual app run
   @Param({  "10000" })
   public int numberOfClasses;
 
@@ -86,7 +86,7 @@ public class StackStress {
   @Param({"350"})
   public int bgThreads;
 
-  // 6g live of 12g heap for FA
+  // 6g live of 12g heap for actual app
   @Param({"1100"})
   public int instanceCount;
 
