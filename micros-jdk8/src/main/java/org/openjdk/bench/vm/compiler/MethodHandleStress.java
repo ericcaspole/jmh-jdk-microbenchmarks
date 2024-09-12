@@ -69,6 +69,9 @@ public class MethodHandleStress {
   @Param({"10"})
   public int instanceCount;
 
+  @Param({"true", "false"})
+  public boolean dumpStacksBean;
+
   byte[][] compiledClasses;
   Class[] loadedClasses;
   String[] classNames;
@@ -93,6 +96,8 @@ public class MethodHandleStress {
 
     static String B(int count, String filler) {
       return    "import java.util.*; "
+            +  "import java.nio.file.*;"
+
             + " "
             + "public class B" + count + " {"
             + " "
@@ -102,7 +107,7 @@ public class MethodHandleStress {
             + "   static int intFieldD" + filler + " = 0;"
             + " "
             + " "
-            + "   int instA = 0;"
+            + "   Integer instA = new Integer( " + count + ");"
                 + " "
                 + "    int padAA" + filler + " = 0;"
                 + "    int padAB" + filler + " = 0;"
@@ -125,7 +130,7 @@ public class MethodHandleStress {
                 + "    int padAS" + filler + " = 0;"
                 + "    int padAT" + filler + " = 0;"
                 + " "
-                + "    int instB = 0;"
+                + "    Integer instB = new Integer(" + count + 1 + ");"
                 + " "
                 + "    int padBA" + filler + " = 0;"
                 + "    int padBB" + filler + " = 0;"
@@ -148,7 +153,7 @@ public class MethodHandleStress {
                 + "    int padBS" + filler + " = 0;"
                 + "    int padBT" + filler + " = 0;"
                 + " "
-                + "    int instC = 0;"
+                + "    Integer instC = new Integer(" + count + 2 + ");"
                 + " "
                 + "    int padCA" + filler + " = 0;"
                 + "    int padCB" + filler + " = 0;"
@@ -171,12 +176,20 @@ public class MethodHandleStress {
                 + "    int padCS" + filler + " = 0;"
                 + "    int padCT" + filler + " = 0;"
             + " "
-            + "   int instD = 0;"
+                + "    Integer instD = new Integer(" + count + 3 + ");"
             + " "
             + " "
+              
+  + "boolean check() {"
+  + "  Path path = FileSystems.getDefault().getPath(\".\", \"micros-jdk8-1.0-SNAPSHOT.jar\");"
+  + "  return Files.exists(path, LinkOption.NOFOLLOW_LINKS);"
+  + "}"
+  + " "
+
+              
             + "   public Integer get( Map m, String k, Integer depth) { "
 //            + "         System.out.println ( m + \" / \" + k);"
-            + "       if (depth > 0) {"
+            + "       if (depth > 0 && check()  == true) {"
             + "         instA += ((depth % 2) + intFieldA" + filler + " );"
             + "         return (Integer) m.get(k) + get2(m, k, --depth);"
             + "       } else {"
@@ -274,17 +287,28 @@ public class MethodHandleStress {
             + "   }"
             + " "
             + "   public Integer get11( Map m, String k, Integer depth) { "
+            + " "
+            + "     synchronized(instA) {"
+            + " "
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get12(m, k, --depth);"
             + "       } else {"
             + "         return (Integer) m.get(k)+ instB;"
             + "       }"
+            + " "
+            + "     }"
+            + " "
             + "   }"
             + " "
             + "   public Integer get12( Map m, String k, Integer depth) { "
+            + " "
+            + "     synchronized(instA) {"
+            + " "
             + " try { "
             + "     if (depth % 19 == 0 ) { Thread.sleep((depth % 11) /* + 11 */); } "
             + " } catch (Exception e) {} "
+            + " "
+            + "     }"
             + " "
             + "       if (depth > 0) {"
             + "         return (Integer) m.get(k) + get(m, k, --depth);"
@@ -355,55 +379,68 @@ public class MethodHandleStress {
 
     for (int i = 0; i < numberOfClasses; i++) {
       classNames[i] = "B" + i;
-//            compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
-            compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
+//    compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i], B(i));
+      compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
                     B(i, nextText(25).intern()));
     }
 
-    for (index = 0; index < compiledClasses.length; index++) {
-      Class c = loader1.findClass(classNames[index]);
-      loadedClasses[index] = c;
+//    for (index = 0; index < compiledClasses.length; index++) {
+    IntStream.range(0, compiledClasses.length).parallel().forEach(index -> {
 
-      List<Object> receivers1 = new LinkedList<>();
-      for (int j=0; j< instanceCount; j++) {
-        receivers1.add( c.newInstance());
-      }
-      instList.put(c, receivers1);
+      try {
+        Class c = loader1.findClass(classNames[index]);
+        loadedClasses[index] = c;
 
-      MethodHandle[] methods = new MethodHandle[methodNames.length];
-      IntStream.range(0, methodNames.length).forEach(m -> {
-        try {
+        List<Object> receivers1 = new LinkedList<>();
+        for (int j = 0; j < instanceCount; j++) {
+          receivers1.add(c.newInstance());
+        }
+        instList.put(c, receivers1);
+
+        MethodHandle[] methods = new MethodHandle[methodNames.length];
+        IntStream.range(0, methodNames.length).forEach(m -> {
+          try {
 //          methods[m] = c.getMethod(methodNames[m], java.util.Map.class, String.class, Integer.class);
 
             MethodType mt = MethodType.methodType(Integer.class, Map.class, String.class, Integer.class);
             MethodHandle mh = publicLookup.findVirtual(c, "get", mt);
-            methods[m] =  mh;
-            
-        } catch (Exception e) {
-          System.out.println("Exception = " + e);
-          e.printStackTrace();
-          System.exit(-1);
-        }
-      });
+            methods[m] = mh;
 
-      methodMap.put(receivers1.get(0).getClass(), methods);
+          } catch (Exception e) {
+            System.out.println("Exception = " + e);
+            e.printStackTrace();
+            System.exit(-1);
+          }
+        });
+
+        methodMap.put(receivers1.get(0).getClass(), methods);
+
+      } catch (Exception e) {
+        System.out.println("Exception = " + e);
+        e.printStackTrace();
+        System.exit(-1);
+      }
+    });
 
     // Warmup the methods to get compiled
-//      IntStream.range(0, methodNames.length).parallel().forEach(m -> {
-//        IntStream.range(0, 12000).forEach(x -> {
-//                  try {
-//                    Object r = instList.get(c).get(0);
-//                    Method[] mi = methodMap.get(r.getClass());
-//                    mi[m].invoke(r, mapList.get(0), k, 5);
-//                  } catch (Exception e) {
-//                    System.out.println("Exception = " + e);
-//                    e.printStackTrace();
-//                    System.exit(-1);
-//                  }
-//                });
-//
-//              });
-    }
+    IntStream.range(0, compiledClasses.length).forEach(c -> {
+      IntStream.range(0, methodNames.length).forEach(m -> {
+        IntStream.range(0, 12000).parallel().forEach(x -> {
+          try {
+            Object r = instList.get(c).get(0);
+            MethodHandle[] mi = methodMap.get(r.getClass());
+            mi[m].invoke(r, mapList.get(0), k, 11);
+          } catch (Throwable e) {
+            System.out.println("Exception = " + e);
+            e.printStackTrace();
+            System.exit(-1);
+          }
+        });
+
+      });
+
+    });
+//    }
 
     System.gc();
   }
@@ -448,10 +485,12 @@ public class MethodHandleStress {
   }
   
   void dump() {
-    ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    if (tlr.nextInt(100) < 15) {
-      if (dumpLock.tryLock()) {
-        ti = tb.dumpAllThreads(true, true);
+    if (dumpStacksBean == true) {
+      ThreadLocalRandom tlr = ThreadLocalRandom.current();
+      if (tlr.nextInt(100) < 15) {
+        if (dumpLock.tryLock()) {
+          ti = tb.dumpAllThreads(true, true);
+        }
       }
     }
   }
