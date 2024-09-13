@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package org.openjdk.bench.vm.compiler;
+package org.openjdk.bench.vm.lang;
 
 import java.lang.invoke.*;
 import java.lang.management.*;
