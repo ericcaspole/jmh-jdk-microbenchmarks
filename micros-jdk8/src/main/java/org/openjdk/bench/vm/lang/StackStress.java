@@ -63,7 +63,6 @@ import org.openjdk.bench.util.InMemoryJavaCompiler;
 @State(Scope.Benchmark)
 @Warmup(iterations = 10, time = 20)  // Need plenty of warmup
 @Measurement(iterations = 25, time = 8)
-//@BenchmarkMode(Mode.AverageTime)
 @BenchmarkMode(Mode.Throughput)
 @Threads(Threads.HALF_MAX)
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -71,14 +70,11 @@ public class StackStress {
 
   // 10000 seems to be a good number for high code cache occupancy
   @Param({  "10000" })
-  public int numberOfClasses;
+  public int classes;
 
     // Deep stacks are common in complex enterprise apps
   @Param({"175"})
   public int recurse;
-
-  @Param({/* "true", */ "false"})
-  public boolean randomRecurse;
 
   // 350 is close to an actual app run log thread count
   @Param({"350"})
@@ -86,10 +82,10 @@ public class StackStress {
 
   // 6g live of 12g heap for actual app
   @Param({"1100"})
-  public int instanceCount;
+  public int instances;
 
   @Param({"true" /* , "false" */})
-  public boolean dumpStacksBean;
+  public boolean stacksBean;
 
   @Param({"true" /* , "false" */})
   public boolean doThrows;
@@ -471,9 +467,9 @@ public class StackStress {
     dumpLock = new ReentrantLock();
     checkLock = new ReentrantLock();
 
-    compiledClasses = new byte[numberOfClasses][];
+    compiledClasses = new byte[classes][];
     loadedClasses = new ConcurrentHashMap<>();
-    classNames = new String[numberOfClasses];
+    classNames = new String[classes];
 
     mapList.add( new HashMap());
     mapList.add( new LinkedHashMap());
@@ -485,7 +481,7 @@ public class StackStress {
 
     MethodHandles.Lookup publicLookup = MethodHandles.publicLookup();
 
-    IntStream.range(0, numberOfClasses).parallel().forEach(i -> {
+    IntStream.range(0, classes).parallel().forEach(i -> {
       classNames[i] = "B" + i;
       compiledClasses[i] = InMemoryJavaCompiler.compile(classNames[i].intern(),
                     B(i, nextText(25).intern(), doThrows));
@@ -498,7 +494,7 @@ public class StackStress {
       loadedClasses.put(Integer.toString(index), c);
     }
 
-    IntStream.range(0, numberOfClasses).parallel().forEach(cc -> {
+    IntStream.range(0, classes).parallel().forEach(cc -> {
 
       // Build the list of objects of this class
       ConcurrentHashMap<String,Object> receivers1 = new ConcurrentHashMap<>();
@@ -506,7 +502,7 @@ public class StackStress {
       Class c = loadedClasses.get(Integer.toString(cc));
       assert c != null : "No class? " + c;
 
-      IntStream.range(0, instanceCount)/* .parallel() */ .forEach(j -> {
+      IntStream.range(0, instances)/* .parallel() */ .forEach(j -> {
         try{
           Object inst = c.newInstance();
           receivers1.put(Integer.toString(j), inst);
@@ -543,7 +539,7 @@ public class StackStress {
     MethodType sMethod = MethodType.methodType(void.class, MethodHandle.class);
 
     IntStream.range(0, compiledClasses.length).parallel().forEach(c -> {
-      IntStream.range(0, instanceCount).forEach(x -> {
+      IntStream.range(0, instances).forEach(x -> {
         ThreadLocalRandom tlr = ThreadLocalRandom.current();
         try {
           // Get the instance we are going to set
@@ -633,7 +629,7 @@ public class StackStress {
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
   Class chooseClass() {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    int whichClass = tlr.nextInt(numberOfClasses);
+    int whichClass = tlr.nextInt(classes);
     return loadedClasses.get(Integer.toString(whichClass).intern());
 
   }
@@ -641,7 +637,7 @@ public class StackStress {
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
   Object chooseInstance(Class c) {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    int whichInst = tlr.nextInt(instanceCount);
+    int whichInst = tlr.nextInt(instances);
     Map<String,Object> iMap = instList.get(c);
     String iKey = Integer.toString(whichInst).intern();
     assert iMap != null : "No insts for " + c + " / " + iKey;
@@ -658,7 +654,7 @@ public class StackStress {
   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
   Integer callTheMethod(MethodHandle m, Object r)  throws Throwable {
     ThreadLocalRandom tlr = ThreadLocalRandom.current();
-    return  (Integer) m.invoke(r, randomRecurse == true ? tlr.nextInt(recurse/2) +  recurse/2 : recurse );
+    return  (Integer) m.invoke(r, recurse );
   }
 
   boolean check() {
@@ -673,7 +669,7 @@ public class StackStress {
   }
 
   void dump() {
-    if (dumpStacksBean == true) {
+    if (stacksBean == true) {
       ThreadLocalRandom tlr = ThreadLocalRandom.current();
       if (tlr.nextInt(100) < 1) {
         if (dumpLock.tryLock()) {
