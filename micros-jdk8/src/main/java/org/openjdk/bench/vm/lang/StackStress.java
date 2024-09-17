@@ -393,7 +393,7 @@ public class StackStress {
         "get",};
 
     ThreadMXBean tb;
-    List<GarbageCollectorMXBean> gcBeans;
+//    List<GarbageCollectorMXBean> gcBeans;
     ThreadInfo[] ti;
     long[] possiblyDeadlockedIds;
     ReentrantLock dumpLock, checkLock;
@@ -466,7 +466,7 @@ public class StackStress {
         });
 
         tb = ManagementFactory.getThreadMXBean();
-        gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
+//        gcBeans = ManagementFactory.getGarbageCollectorMXBeans();
         dumpLock = new ReentrantLock();
         checkLock = new ReentrantLock();
 
@@ -542,10 +542,8 @@ public class StackStress {
 
         IntStream.range(0, compiledClasses.length).parallel().forEach(c -> {
             IntStream.range(0, instances).forEach(x -> {
-                ThreadLocalRandom tlr = ThreadLocalRandom.current();
                 try {
                     // Get the instance we are going to set
-//          Class currClass = loadedClasses[c];
                     Class currClass = loadedClasses.get(Integer.toString(c));
                     assert currClass != null : "No class? " + c;
                     Object currObj = instList.get(currClass).get(Integer.toString(x));
@@ -581,7 +579,6 @@ public class StackStress {
         });
 
         System.out.println("Target Objects updated.");
-//    System.gc();
 
         // Warmup the methods to get compiled
         IntStream.range(0, compiledClasses.length). /* parallel(). */forEach(c -> {
@@ -654,7 +651,6 @@ public class StackStress {
 
     @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     Integer callTheMethod(MethodHandle m, Object r) throws Throwable {
-        ThreadLocalRandom tlr = ThreadLocalRandom.current();
         return (Integer) m.invoke(r, recurse);
     }
 
@@ -669,22 +665,21 @@ public class StackStress {
         return false;
     }
 
-    void dump() {
+    void dump(Blackhole bh) {
         if (stacksBean == true) {
             ThreadLocalRandom tlr = ThreadLocalRandom.current();
             if (tlr.nextInt(100) < 1) {
                 if (dumpLock.tryLock()) {
-                    ti = tb.dumpAllThreads(true, true);
-
+                    bh.consume( tb.dumpAllThreads(true, true) );
                     possiblyDeadlockedIds = tb.findDeadlockedThreads();
                     assert possiblyDeadlockedIds.length == 0 : "We dont have deadlocks! " + possiblyDeadlockedIds.length;
+                    bh.consume( possiblyDeadlockedIds );
                 }
             }
         }
     }
 
     int executeOne() throws Throwable {
-        ThreadLocalRandom tlr = ThreadLocalRandom.current();
         Class c = chooseClass();
         Object r = chooseInstance(c);
         MethodHandle m = chooseMethod(c);
@@ -698,7 +693,7 @@ public class StackStress {
 
             sum += executeOne();
             if (id == 0) {
-                dump();
+                dump(bh);
             }
 
         } catch (Throwable e) {
