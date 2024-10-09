@@ -36,6 +36,15 @@
     <name>OpenJDK Microbenchmark Corpus (JDK 8)</name>
 
     <build>
+    <resources>
+        <resource>
+                <directory>src/main/java</directory>
+                <includes>
+                    <include>**/*.java</include>
+                </includes>
+        </resource>
+    </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -44,6 +53,7 @@
                 <configuration>
                     <source>1.8</source>
                     <target>1.8</target>
+                    <includes></includes>
                 </configuration>
             </plugin>
             <plugin>
@@ -55,6 +65,10 @@
                         <!-- Do not waste time compressing, maven-shade-plugin will compress the final JAR -->
                         <compress>false</compress>
                     </archive>
+              <includes>
+                <include>**/*</include>
+              </includes>
+
                 </configuration>
             </plugin>
             <plugin>
